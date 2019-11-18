@@ -10,5 +10,6 @@ namespace Fence.Util
     {
         public string Name { get; set; }
         public PointD[] Region { get; set; }
+        public string Comment { get; set; }
     }
 }

@@ -46,9 +46,9 @@ namespace ElectricFenceService
             _fence = new FenceData()
             {
                 Gates = new List<GateInfo>() {
-                     new GateInfo() { ID = "00000000354016000017", Name = "兴中1#码头01", Longitude= 122.1373222, Latitude = 29.94655278 },
-                     new GateInfo() { ID = "00000000354016000018", Name = "兴中2#码头01", Longitude= 122.1347333, Latitude = 29.94816111 },
-                     new GateInfo() { ID = "00000000354016000019", Name = "兴中4#码头01", Longitude= 122.128825, Latitude = 29.95363 },
+                     new GateInfo() { ID = "00000000354016000017", Name = "兴中1#码头01", Longitude= 122.1373222, Latitude = 29.94655278, Comment="闸机测试" },
+                     new GateInfo() { ID = "00000000354016000018", Name = "兴中2#码头01", Longitude= 122.1347333, Latitude = 29.94816111, Comment="闸机测试2"  },
+                     new GateInfo() { ID = "00000000354016000019", Name = "兴中4#码头01", Longitude= 122.128825, Latitude = 29.95363, Comment="闸机测试3"  },
                      new GateInfo() { ID = "00000000354016000020", Name = "兴中5#码头01", Longitude= 122.1465972, Latitude = 29.94745556 },
                      new GateInfo() { ID = "00000000354016000021", Name = "兴中5#码头中02", Longitude= 122.1420722, Latitude = 29.94718333 },
                      new GateInfo() { ID = "00000000354016000022", Name = "兴中3号码头", Longitude= 122.133236, Latitude = 29.950094 },
@@ -60,10 +60,10 @@ namespace ElectricFenceService
                      //new GateInfo() { ID = "00000000354016000052", Name = "外钓油品全景云台", Longitude= 121.963317, Latitude = 30.06325 },
                  },
                 Regions = new List<FenceRegionsInfo>() {
-                     new FenceRegionsInfo(){ ID = "1", Name = "兴中1号码头", Region=new PointD[]{ new PointD(122.1367981, 29.94607611),new PointD(122.1370567, 29.93903937),new PointD(122.1422549, 29.93901696),new PointD(122.1418928, 29.94746547)} },
-                     new FenceRegionsInfo(){ ID = "2", Name = "兴中1号码头(内部)", Region=new PointD[]{ new PointD(122.1378237, 29.94636061),new PointD(122.1380353, 29.94501603),new PointD(122.1413269, 29.94564758),new PointD(122.1411153, 29.94719587)} },
-                     new FenceRegionsInfo(){ ID = "3", Name = "兴中2号码头", Region=new PointD[]{ new PointD(122.1348326, 29.94813773),new PointD(122.1296085, 29.9455607),new PointD(122.1281861, 29.94782401),new PointD(122.1331774, 29.95022173)} },
-                     new FenceRegionsInfo(){ ID = "4", Name = "兴中2号码头（内部）", Region=new PointD[]{ new PointD(122.133192 , 29.94988496),new PointD(122.1323221, 29.94941641),new PointD(122.1333095, 29.94809224),new PointD(122.1343675, 29.94858117)} },
+                     new FenceRegionsInfo(){ ID = "1", Name = "兴中1号码头", Region=new PointD[]{ new PointD(122.1367981, 29.94607611),new PointD(122.1370567, 29.93903937),new PointD(122.1422549, 29.93901696),new PointD(122.1418928, 29.94746547)}, Comment="区域测试1"},
+                     new FenceRegionsInfo(){ ID = "2", Name = "兴中1号码头(内部)", Region=new PointD[]{ new PointD(122.1378237, 29.94636061),new PointD(122.1380353, 29.94501603),new PointD(122.1413269, 29.94564758),new PointD(122.1411153, 29.94719587)}, Comment="区域测试2" },
+                     new FenceRegionsInfo(){ ID = "3", Name = "兴中2号码头", Region=new PointD[]{ new PointD(122.1348326, 29.94813773),new PointD(122.1296085, 29.9455607),new PointD(122.1281861, 29.94782401),new PointD(122.1331774, 29.95022173)}, Comment="区域测试3"},
+                     new FenceRegionsInfo(){ ID = "4", Name = "兴中2号码头（内部）", Region=new PointD[]{ new PointD(122.133192 , 29.94988496),new PointD(122.1323221, 29.94941641),new PointD(122.1333095, 29.94809224),new PointD(122.1343675, 29.94858117)}, Comment="区域测试4"},
                      new FenceRegionsInfo(){ ID = "5", Name = "兴中3号码头", Region=new PointD[]{ new PointD(122.1328671, 29.95019932),new PointD(122.1280309, 29.94789124),new PointD(122.1265568, 29.95026654),new PointD(122.1307464, 29.95194715)}},
                      new FenceRegionsInfo(){ ID = "6", Name = "兴中3号码头(内部)", Region=new PointD[]{ new PointD(122.1308409, 29.9517795),new PointD(122.1299709, 29.95124985),new PointD(122.1313346, 29.95008868),new PointD(122.1325807, 29.95053685)} },
                      new FenceRegionsInfo(){ ID = "7", Name = "兴中4号码头", Region=new PointD[]{ new PointD(122.1285223, 29.95486013),new PointD(122.1242809, 29.95331402),new PointD(122.1264792, 29.95031136),new PointD(122.1306688, 29.95203678)}},
