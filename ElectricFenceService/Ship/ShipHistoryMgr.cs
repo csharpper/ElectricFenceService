@@ -28,7 +28,7 @@ namespace ElectricFenceService.Ship
                 ///每三十秒刷新一次，清理一次过期历史船舶
                 lock (Historys)
                 {
-                    var removeds = Historys.Where(_ => isTimeout(_.Value.Last())).Select(_=>_.Key);
+                    var removeds = Historys.Where(_ => isTimeout(_.Value.LastOrDefault())).Select(_=>_.Key).ToArray();
                     if (removeds.Count()> 0)
                     {
                         foreach (var r in removeds)
@@ -46,7 +46,7 @@ namespace ElectricFenceService.Ship
                 string id = ship.MMSI > 0 ? ship.MMSI.ToString() : ship.ID;
                 if (Historys.ContainsKey(id))//如果存在，检查过期情况。移除第一个过期的历史数据
                 {
-                    while (isTimeout(Historys[id].Peek()))
+                    while (Historys[id].Count > 0 && isTimeout(Historys[id].Peek()))
                         Historys[id].Dequeue();
                 }
                 else//如果不存在则新建
@@ -67,7 +67,7 @@ namespace ElectricFenceService.Ship
 
         bool isTimeout(ShipInfo ship)
         {
-            return ship.UpdateTime.AddSeconds(HistorySeconds) < DateTime.Now;
+            return ship == null || ship.UpdateTime.AddSeconds(HistorySeconds) < DateTime.Now;
         }
     }
 }

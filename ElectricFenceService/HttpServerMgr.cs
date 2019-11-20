@@ -1,5 +1,6 @@
 ﻿using ElectricFenceService.Http;
 using ElectricFenceService.Shield;
+using ElectricFenceService.User;
 using Fence.Util;
 using Newtonsoft.Json;
 using System;
@@ -81,36 +82,88 @@ namespace ElectricFenceService
                 {
                     try
                     {
-                        var remoteendport = hRequest.RemoteEndPoint;
-                        var key = hRequest.Headers.AllKeys.FirstOrDefault(_=>_ == "key");
+                        var endport = hRequest.RemoteEndPoint;
+                        string key = readHeader(hRequest.Headers,"handle");
+                        var onlineInfo = key != null ? OnlineMgr.Instance.GetOnlineInfo(key): null;
                         HttpRequestInfo reqInfo = HttpRequestInfo.Create(hRequest.RawUrl);
-                        if(reqInfo == null)
+                        var headers = hRequest.Headers;
+                        if (reqInfo == null)
                             writer.WriteLine("error,请输入有效的参数.");
                         else
                         {
                             switch (reqInfo.Sort)
                             {
+                                case "login":
+                                    if (headers.AllKeys.Any(_ => _ == "user") && headers.AllKeys.Any(_ => _ == "pass"))
+                                        key = OnlineMgr.Instance.Login(headers["user"], headers["pass"]);
+                                    else
+                                        throw new InvalidCastException("未找到登录的用户名或密码。");
+                                    if (string.IsNullOrEmpty(key))
+                                        throw new InvalidCastException("用户名或密码错误。");
+                                    onlineInfo = OnlineMgr.Instance.GetOnlineInfo(key);
+                                    UserInfo userInfo = UserMgr.Instance.Get(onlineInfo.UserName);
+                                    writer.WriteLine($"{key},{userInfo.Longitude},{userInfo.Latitude},{userInfo.Scale},{onlineInfo.Level}");
+                                    break;
+                                case "logout":
+                                    OnlineMgr.Instance.Logout(key);
+                                    onlineInfo = null;
+                                    writer.WriteLine("seccess");
+                                    break;
+                                case "user":
+                                    writer.WriteLine(JsonConvert.SerializeObject(onlineInfo, Formatting.Indented));
+                                    break;
+                                case "changepass":
+                                    if (onlineInfo == null)
+                                        throw new InvalidCastException("当前未登录或登录已过期,请退出重新登录.");
+                                    if (!headers.AllKeys.Any(_ => _ == "pass"))
+                                        throw new InvalidCastException("未找到新密码，修改失败.");
+                                    UserMgr.Instance.ChangePass(onlineInfo.UserName, headers["pass"]);
+                                    writer.WriteLine("seccess");
+                                    break;
+                                case "adduser":
+                                    checkWrite(onlineInfo);
+                                    addUser(headers);
+                                    writer.WriteLine("seccess");
+                                    break;
+                                case "updateuser":
+                                    checkWrite(onlineInfo);
+                                    updateUser(headers);
+                                    writer.WriteLine("seccess");
+                                    break;
+                                case "deleteuser":
+                                    checkWrite(onlineInfo);
+                                    int count = deleteUser(reqInfo.Source);
+                                    writer.WriteLine($"seccess,成功删除 {count} 个用户。");
+                                    break;
                                 case "searchall":
-                                    writer.WriteLine(FenceMgr.Instance.ToJson());
+                                    writer.WriteLine(FenceMgr.Instance.ToJsonFromUser(onlineInfo));
                                     break;
                                 case "setregion":
+                                    checkWrite(onlineInfo);
                                     FenceMgr.Instance.Set<FenceRegionsInfo>(hRequest.InputStream);
                                     break;
                                 case "setgate":
+                                    checkWrite(onlineInfo);
                                     FenceMgr.Instance.Set<GateInfo>(hRequest.InputStream);
                                     break;
                                 case "setbridge":
+                                    checkRead(onlineInfo);
                                     FenceMgr.Instance.Set<Bridge>(hRequest.InputStream);
                                     break;
                                 case "ship":
                                     writeShipInfo(writer, reqInfo.Source);
                                     break;
                                 case "shield":
+                                    checkWrite(onlineInfo);
                                     writeShields(writer, reqInfo.Source);
                                     break;
                                 case "deletegate":
                                 case "deleteregion":
+                                    checkWrite(onlineInfo);
+                                    writeDeleteFence(writer, reqInfo);
+                                    break;
                                 case "deletebridge":
+                                    checkRead(onlineInfo);
                                     writeDeleteFence(writer, reqInfo);
                                     break;
                                 default:
@@ -126,12 +179,105 @@ namespace ElectricFenceService
                     }
                     catch (Exception ex)
                     {
-                        writer.WriteLine("error,request error." + ex.Message);
+                        writer.WriteLine("error,解析错误." + ex.Message);
                     }
                 }
             }
             _thread = null;
             Stop();
+        }
+
+        string readHeader(System.Collections.Specialized.NameValueCollection headers, string key)
+        {
+            if (headers.AllKeys.Any(_ => _ == key))
+                return headers[key];
+            return null;
+        }
+
+        private int deleteUser(SortSource[] source)
+        {
+            var users = source.Where(_ => _.Name.Equals("user")).Select(_ => _.Setting);
+            return UserMgr.Instance.Delete(users);
+        }
+
+        private void addUser(System.Collections.Specialized.NameValueCollection headers)
+        {
+            UserInfo user = getUser(headers);
+            if (UserMgr.Instance.IsExist(user.UserName))
+                throw new InvalidCastException("创建失败，用户已存在。");
+            UserMgr.Instance.Set(user);
+        }
+
+        void updateUser(System.Collections.Specialized.NameValueCollection headers)
+        {
+            UserInfo newUser = getUser(headers);
+            UserInfo oldUser = UserMgr.Instance.Get(newUser.UserName);
+            if (oldUser == null)
+                throw new InvalidCastException("更新失败，用户不存在。");
+            
+            if(!string.IsNullOrEmpty(newUser.Password))
+                oldUser.Password = newUser.Password;
+            if(newUser.Longitude > -180 && newUser.Longitude <= 180)
+                oldUser.Longitude = newUser.Longitude;
+            if (newUser.Latitude > -85 && newUser.Longitude < 85)
+                oldUser.Latitude = newUser.Latitude;
+            if (newUser.Scale > 1)
+                oldUser.Scale = newUser.Scale;
+            UserMgr.Instance.Set(oldUser);
+        }
+
+        UserInfo getUser(System.Collections.Specialized.NameValueCollection headers)
+        {
+            string user = readHeader(headers, "user");
+            string pass = readHeader(headers, "pass");
+            string strLon = readHeader(headers, "lon");
+            string strLat = readHeader(headers, "lat");
+            string strScale = readHeader(headers, "scale");
+            if (!string.IsNullOrEmpty(user))
+                throw new InvalidCastException("用户名无效。");
+            double lon = 181;// 122.1458;
+            if (!string.IsNullOrEmpty(strLon))
+                double.TryParse(strLon, out lon);
+            double lat = 91;// 30.0502;
+            if (!string.IsNullOrEmpty(strLat))
+                double.TryParse(strLat, out lat);
+            int scale = 0;// 235190;
+            if (!string.IsNullOrEmpty(strScale))
+                int.TryParse(strScale, out scale);
+            int level = 3;
+            //if (level < 1 || level > 3)
+            //    throw new InvalidCastException("用户权限配置错误。");
+            return new UserInfo()
+            {
+                UserName = user,
+                Password = pass,
+                Longitude = lon,
+                Latitude = lat,
+                Scale = scale,
+                Level = level
+            };
+        }
+
+        bool isCanRead(OnlineMgr.OnlineInfo info)
+        {
+            return info != null && (info.UserName == "system" || info.UserName == "admin");
+        }
+
+        void checkRead(OnlineMgr.OnlineInfo info)
+        {
+            if (!isCanRead(info))
+                throw new InvalidCastException("无操作权限。");
+        }
+
+        bool isCanWrite(OnlineMgr.OnlineInfo info)
+        {
+            return info != null && info.UserName == "system";
+        }
+
+        void checkWrite(OnlineMgr.OnlineInfo info)
+        {
+            if(!isCanWrite(info))
+                throw new InvalidCastException("无操作权限。");
         }
 
         #region 查询船舶相关信息
@@ -200,12 +346,12 @@ namespace ElectricFenceService
                         regions.Add(source.Setting);
             }
             FenceMgr.Instance.Delete(gates, regions);
-            writer.WriteLine("seccess，删除已完成。");
+            writer.WriteLine("seccess");
         }
 
         #endregion
 
-        #region 电子围栏屏蔽船舶
+        #region 电子围栏屏蔽船舶设置
         private void writeShields(StreamWriter writer, SortSource[] sources)
         {
             if (sources == null || sources.Length == 0)
@@ -256,7 +402,7 @@ namespace ElectricFenceService
                     if (types.Count > 0)
                         ShieldMgr.Instance.RemoveFromTypes(types);
                 }
-                writer.WriteLine("seccess,配置完成。");
+                writer.WriteLine("seccess");
             }
         }
 

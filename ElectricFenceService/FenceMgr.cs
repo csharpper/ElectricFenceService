@@ -1,4 +1,5 @@
-﻿using Fence.Util;
+﻿using ElectricFenceService.User;
+using Fence.Util;
 using Geometry;
 using Newtonsoft.Json;
 using System;
@@ -86,6 +87,23 @@ namespace ElectricFenceService
             save();
         }
 
+        public string ToJsonFromUser(OnlineMgr.OnlineInfo onlineInfo)
+        {
+            if (onlineInfo == null || onlineInfo.Level > 2)
+                return "{}";
+            return ToJson();
+            //if (onlineInfo.UserName == "admin" || onlineInfo.Level == 1)
+            //    return ToJson();
+            //return JsonConvert.SerializeObject(filterByUser(onlineInfo), Formatting.Indented);
+        }
+
+        //private FenceData filterByUser(OnlineMgr.OnlineInfo onlineInfo)
+        //{
+        //    if (onlineInfo.UserName == "admin" || onlineInfo.Level == 1)
+        //        return _fence;
+
+        //}
+
         public void Set<T>(T region) where T : TargetObj
         {
             _fence.AddOrUpdate(region);
@@ -96,6 +114,7 @@ namespace ElectricFenceService
             var body = new StreamReader(stream).ReadToEnd();
             if (string.IsNullOrWhiteSpace(body))
                 throw new InvalidCastException("请输入有效的数据.");
+            Common.Log.Logger.Default.Trace("Stream:" + body);
             var region = JsonConvert.DeserializeObject<T>(body);
             Set(region);
         }

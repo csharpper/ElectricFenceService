@@ -20,11 +20,15 @@ namespace ElectricFenceService.Socket
         {
             _host = host;
             _port = port;
+            _disposeEvent.Reset();
+            new Thread(run) { IsBackground = true }.Start();
+        }
+
+        void newClient()
+        {
             _client = new TcpClient();
             _client.ReceiveTimeout = 15000;
             _client.SendTimeout = 15000;
-            _disposeEvent.Reset();
-            new Thread(run) { IsBackground = true }.Start();
         }
 
         private void run()
@@ -35,16 +39,18 @@ namespace ElectricFenceService.Socket
                 {
                     close();
                     Thread.Sleep(1000);
+                    newClient();
                     _client.Connect(_host, _port);
+                    Common.Log.Logger.Default.Trace("Client Connected Seccess.");
                 }
                 catch (Exception ex)
                 {
-                    Common.Log.Logger.Default.Trace("Client Connected Error." + ex);
+                    Common.Log.Logger.Default.Error("Client Connected Error." + ex);
                     continue;
                 }
                 try
                 {
-                    byte[] buffer = new byte[2 * 1024];
+                    byte[] buffer = new byte[8 * 1024];
                     while (true)
                     {
                         int length = _client.Client.Receive(buffer);
@@ -75,7 +81,7 @@ namespace ElectricFenceService.Socket
         {
             try
             {
-                _client.Close();
+                _client?.Close();
             }
             catch { }
         }

@@ -72,7 +72,7 @@ namespace Fence.Util
 
         private void addOrUpdate<T>(List<T> list, T t) where T: TargetObj
         {
-            var last = list.FirstOrDefault();
+            var last = list.FirstOrDefault(_=>_.ID == t.ID);
             if (last != null)
                 t.CreateTime = last.CreateTime;
             list.RemoveAll(_ => _.ID == t.ID);

@@ -8,7 +8,6 @@ namespace Fence.Util
     public class TargetObj
     {
         public string ID { get; set; }
-        public string User { get; set; } = "system";
         public DateTime CreateTime { get; set; } = DateTime.Now;
         public DateTime UpdateTime { get; set; } = DateTime.Now;
     }

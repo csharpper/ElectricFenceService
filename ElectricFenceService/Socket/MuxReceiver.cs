@@ -23,7 +23,7 @@ namespace ElectricFenceService.Socket
                 int index = 0;
                 try
                 {
-                    if (settings[index++].Equals("track"))
+                    if (settings[index++].Equals("track") && settings.Length >= 13)
                     {
                         string id = settings[index++];
                         int mmsi = int.Parse(settings[index++]);
@@ -37,7 +37,9 @@ namespace ElectricFenceService.Socket
                         double cog = double.Parse(settings[index++]);
                         double length = double.Parse(settings[index++]);
                         double width = double.Parse(settings[index++]);
-                        double heading = double.Parse(settings[index++]);
+                        double heading = 511;
+                        if (settings.Length > index)
+                            double.TryParse(settings[index++], out heading);
                         string callsign = null;
                         if (settings.Length > index)
                         {
@@ -61,6 +63,8 @@ namespace ElectricFenceService.Socket
                         };
                         onDynamic(target);
                     }
+                    else
+                        Common.Log.Logger.Default.Error($"Received Error Data: {ship}");
                 }
                 catch (Exception ex)
                 {

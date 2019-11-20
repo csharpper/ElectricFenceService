@@ -11,16 +11,18 @@ namespace ElectricFenceService.User
         public Dictionary<string , UserInfo> Users { get; set; }
         public void AddOrUpdate(UserInfo info)
         {
-                Common.Log.Logger.Default.Trace($"Update User:{info.UserName},{info.Level}");
-                if (string.IsNullOrWhiteSpace(info.UserName))
-                    throw new InvalidCastException("用户名无效.");
-                if(string.IsNullOrWhiteSpace(info.Password))
-                    throw new InvalidCastException("密码不能为空.");
-                if (info.Password.Length < 8)
-                    throw new InvalidCastException("密码长度过短.");
-                if (info.Level < 1 || info.Level > 3)
-                    throw new InvalidCastException("不支持的用户等级。");
-
+            Common.Log.Logger.Default.Trace($"Update User:{info.UserName},{info.Level}");
+            if (string.IsNullOrWhiteSpace(info.UserName))
+                throw new InvalidCastException("用户名无效.");
+            if (string.IsNullOrWhiteSpace(info.Password))
+                throw new InvalidCastException("密码不能为空.");
+            if (info.Password.Length < 8)
+                throw new InvalidCastException("密码长度过短(不低于8位).");
+            int pass = 0;
+            if (int.TryParse(info.Password, out pass))
+                throw new InvalidCastException("密码不能为纯数字。");
+            if (info.Level < 1 || info.Level > 3)
+                throw new InvalidCastException("不支持的用户等级。");
             lock (Users)
             {
                 Users[info.UserName] = info;
