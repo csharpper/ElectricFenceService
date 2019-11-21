@@ -72,11 +72,27 @@ namespace Fence.Util
 
         private void addOrUpdate<T>(List<T> list, T t) where T: TargetObj
         {
-            var last = list.FirstOrDefault(_=>_.ID == t.ID);
-            if (last != null)
-                t.CreateTime = last.CreateTime;
-            list.RemoveAll(_ => _.ID == t.ID);
+            if (!string.IsNullOrWhiteSpace(t.ID))
+            {
+                var last = list.FirstOrDefault(_ => _.ID == t.ID);
+                if (last != null)
+                    t.CreateTime = last.CreateTime;
+                list.RemoveAll(_ => _.ID == t.ID);
+            }
+            else
+                t.ID = getNewRegionID();
             list.Add(t);
+        }
+
+        private string getNewRegionID()
+        {
+            for (int i = 1; i < 1000; i++)
+            {
+                string str = i.ToString("000");
+                if (Regions.All(_ => _.ID != str))
+                    return str;
+            }
+            throw new InvalidCastException("添加区域失败，当前区域数量超过上限。");
         }
 
         #endregion 新增或更新数据
@@ -101,5 +117,37 @@ namespace Fence.Util
             Bridges?.RemoveAll(_ => _.Links == null || _.Links.Count == 0);//删除空的关联列表
         }
         #endregion 删除数据
+
+        public FenceRegionsInfo[] GetBridgeFromGate(string id)
+        {
+            var regions = Bridges?.FirstOrDefault(_ => _.ID == id);
+            List<FenceRegionsInfo> list = new List<FenceRegionsInfo>();
+            if (regions != null && regions.Links != null)
+            {
+                foreach (var r in regions.Links)
+                {
+                    var reg = Regions?.FirstOrDefault(_ => _.ID == r);
+                    if (reg != null)
+                        list.Add(reg);
+                }
+            }
+            return list.ToArray();
+        }
+
+        public GateInfo[] GetBridgeFromRegion(string id)
+        {
+            List<GateInfo> list = new List<GateInfo>();
+            var regions = Bridges?.Where(_ =>_.Links.Any(l=> l == id)).Select(_=>_.ID);
+            if (Gates != null && regions != null && regions.Count() > 0)
+            {
+                foreach (var r in regions)
+                {
+                    var reg = Gates.FirstOrDefault(_ => _.ID == r);
+                    if (reg != null)
+                        list.Add(reg);
+                }
+            }
+            return list.ToArray();
+        }
     }
 }

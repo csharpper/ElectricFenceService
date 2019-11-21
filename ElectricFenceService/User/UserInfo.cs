@@ -28,7 +28,7 @@ namespace ElectricFenceService.User
         /// 用户登录时的纬度
         /// </summary>
         public double Latitude { get; set; } = 30.0502;
-        public int Scale { get; set; } = 235190;
+        public int Scale { get; set; } = 10;
         public int Level { get; set; }
 
         public UserInfo Clone()

@@ -93,6 +93,7 @@ namespace ElectricFenceService
                         {
                             switch (reqInfo.Sort)
                             {
+                                #region 用户登录、退出及用户操作
                                 case "login":
                                     if (headers.AllKeys.Any(_ => _ == "user") && headers.AllKeys.Any(_ => _ == "pass"))
                                         key = OnlineMgr.Instance.Login(headers["user"], headers["pass"]);
@@ -135,8 +136,26 @@ namespace ElectricFenceService
                                     int count = deleteUser(reqInfo.Source);
                                     writer.WriteLine($"seccess,成功删除 {count} 个用户。");
                                     break;
+                                #endregion 用户登录、退出及用户操作
+                                #region 围栏信息查询及增删改操作
                                 case "searchall":
                                     writer.WriteLine(FenceMgr.Instance.ToJsonFromUser(onlineInfo));
+                                    break;
+                                case "gate":
+                                    checkRead(onlineInfo);
+                                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo), FenceNum.Gate));
+                                    break;
+                                case "region":
+                                    checkRead(onlineInfo);
+                                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo),FenceNum.Region));
+                                    break;
+                                case "gatebridge":
+                                    checkRead(onlineInfo);
+                                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo), FenceNum.BridgeGate));
+                                    break;
+                                case "regionbridge":
+                                    checkRead(onlineInfo);
+                                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo), FenceNum.BridgeRegion));
                                     break;
                                 case "setregion":
                                     checkWrite(onlineInfo);
@@ -150,21 +169,24 @@ namespace ElectricFenceService
                                     checkRead(onlineInfo);
                                     FenceMgr.Instance.Set<Bridge>(hRequest.InputStream);
                                     break;
+                                case "deletegate":
+                                case "deleteregion":
+                                    checkWrite(onlineInfo);
+                                    writeDeleteFence(reqInfo);
+                                    writer.WriteLine("seccess");
+                                    break;
+                                case "deletebridge":
+                                    checkRead(onlineInfo);
+                                    writeDeleteFence(reqInfo);
+                                    writer.WriteLine("seccess");
+                                    break;
+                                #endregion 围栏信息查询及增删改操作
                                 case "ship":
                                     writeShipInfo(writer, reqInfo.Source);
                                     break;
                                 case "shield":
                                     checkWrite(onlineInfo);
                                     writeShields(writer, reqInfo.Source);
-                                    break;
-                                case "deletegate":
-                                case "deleteregion":
-                                    checkWrite(onlineInfo);
-                                    writeDeleteFence(writer, reqInfo);
-                                    break;
-                                case "deletebridge":
-                                    checkRead(onlineInfo);
-                                    writeDeleteFence(writer, reqInfo);
                                     break;
                                 default:
                                     writer.WriteLine("error,不支持的消息字段.");
@@ -185,6 +207,11 @@ namespace ElectricFenceService
             }
             _thread = null;
             Stop();
+        }
+
+        private string[] getIds(HttpRequestInfo reqInfo)
+        {
+            return reqInfo.Source.Where(_ => _.Name == "id").Select(_ => _.Setting).ToArray();
         }
 
         string readHeader(System.Collections.Specialized.NameValueCollection headers, string key)
@@ -319,7 +346,7 @@ namespace ElectricFenceService
 
         #region 删除电子围栏信息
 
-        private void writeDeleteFence(StreamWriter writer, HttpRequestInfo req)
+        private void writeDeleteFence(HttpRequestInfo req)
         {
             if (req.Source == null || req.Source.Length == 0)
                 throw new InvalidCastException("未找到需要删除的字段.");
@@ -346,7 +373,6 @@ namespace ElectricFenceService
                         regions.Add(source.Setting);
             }
             FenceMgr.Instance.Delete(gates, regions);
-            writer.WriteLine("seccess");
         }
 
         #endregion
@@ -355,9 +381,7 @@ namespace ElectricFenceService
         private void writeShields(StreamWriter writer, SortSource[] sources)
         {
             if (sources == null || sources.Length == 0)
-            {
                 writer.WriteLine(ShieldMgr.Instance.ToJson());
-            }
             else
             {
                 bool isAdd = false;
@@ -402,10 +426,11 @@ namespace ElectricFenceService
                     if (types.Count > 0)
                         ShieldMgr.Instance.RemoveFromTypes(types);
                 }
+                else
+                    throw new InvalidCastException("未知的字段。");
                 writer.WriteLine("seccess");
             }
         }
-
         #endregion
     }
 }
