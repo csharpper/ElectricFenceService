@@ -76,7 +76,19 @@ namespace Fence.Util
             {
                 var last = list.FirstOrDefault(_ => _.ID == t.ID);
                 if (last != null)
+                {
                     t.CreateTime = last.CreateTime;
+                    if (t is Bridge)
+                    {
+                        var bri = t as Bridge;
+                        if ((last as Bridge).Links != null && (last as Bridge).Links.Count() > 0)
+                        {
+                            bri.Links.AddRange((last as Bridge).Links);
+                            bri.Links = bri.Links.Distinct().OrderBy(_=>_).ToList(); ;
+                        }
+                    }
+                }
+                t.UpdateTime = DateTime.Now;
                 list.RemoveAll(_ => _.ID == t.ID);
             }
             else
@@ -93,6 +105,32 @@ namespace Fence.Util
                     return str;
             }
             throw new InvalidCastException("添加区域失败，当前区域数量超过上限。");
+        }
+
+        public void AddBridge(List<string> gates, List<string> regions)
+        {
+            if (gates.Count == 0 || regions.Count == 0)
+                throw new InvalidCastException("未找到有效的关联项。");
+            lock (Bridges)
+            {
+                foreach(var gate in gates)
+                {
+                    var g = Bridges.FirstOrDefault(_ => _.ID == gate);
+                    if (g == null)
+                    {
+                        g = new Bridge() { ID = gate, Links = new List<string>() };
+                        Bridges.Add(g);
+                    }
+                    else
+                        g.UpdateTime = DateTime.Now;
+                    foreach (var reg in regions)
+                    {
+                        if (g.Links.All(_ => _ != reg))
+                            g.Links.Add(reg);
+                    }
+                    g.Links = g.Links.OrderBy(_ => _).ToList();
+                }
+            }
         }
 
         #endregion 新增或更新数据

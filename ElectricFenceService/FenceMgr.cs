@@ -146,6 +146,11 @@ namespace ElectricFenceService
         {
             _fence.Delete(gates, regions);
         }
+
+        public void AddBridge(List<string> gates, List<string> regions)
+        {
+            _fence.AddBridge(gates, regions);
+        }
     }
 
     public enum FenceNum

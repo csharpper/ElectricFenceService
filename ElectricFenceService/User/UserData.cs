@@ -28,5 +28,15 @@ namespace ElectricFenceService.User
                 Users[info.UserName] = info;
             }
         }
+
+        public UserInfo[] CloneSafe()
+        {
+            lock (Users)
+            {
+                var users = Users.Values.Select(_ => _.Clone()).ToList();
+                users.ForEach(_ => _.Password = null);
+                return users.ToArray();
+            }
+        }
     }
 }

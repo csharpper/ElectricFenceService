@@ -113,6 +113,10 @@ namespace ElectricFenceService
                                 case "user":
                                     writer.WriteLine(JsonConvert.SerializeObject(onlineInfo, Formatting.Indented));
                                     break;
+                                case "users":
+                                    checkRead(onlineInfo);
+                                    writer.WriteLine(UserMgr.Instance.ToJsonSafe());
+                                    break;
                                 case "changepass":
                                     if (onlineInfo == null)
                                         throw new InvalidCastException("当前未登录或登录已过期,请退出重新登录.");
@@ -165,19 +169,16 @@ namespace ElectricFenceService
                                     checkWrite(onlineInfo);
                                     FenceMgr.Instance.Set<GateInfo>(hRequest.InputStream);
                                     break;
-                                case "setbridge":
-                                    checkRead(onlineInfo);
-                                    FenceMgr.Instance.Set<Bridge>(hRequest.InputStream);
-                                    break;
                                 case "deletegate":
                                 case "deleteregion":
                                     checkWrite(onlineInfo);
-                                    writeDeleteFence(reqInfo);
+                                    settingFence(reqInfo);
                                     writer.WriteLine("seccess");
                                     break;
+                                case "setbridge":
                                 case "deletebridge":
                                     checkRead(onlineInfo);
-                                    writeDeleteFence(reqInfo);
+                                    settingFence(reqInfo);
                                     writer.WriteLine("seccess");
                                     break;
                                 #endregion 围栏信息查询及增删改操作
@@ -346,12 +347,13 @@ namespace ElectricFenceService
 
         #region 删除电子围栏信息
 
-        private void writeDeleteFence(HttpRequestInfo req)
+        private void settingFence(HttpRequestInfo req)
         {
             if (req.Source == null || req.Source.Length == 0)
                 throw new InvalidCastException("未找到需要删除的字段.");
             List<string> gates = null;
             List<string> regions = null;
+            bool isDelete = true;
             switch (req.Sort)
             {
                 case "deletegate":
@@ -364,15 +366,23 @@ namespace ElectricFenceService
                     gates = new List<string>();
                     regions = new List<string>();
                     break;
+                case "setbridge":
+                    isDelete = false;
+                    gates = new List<string>();
+                    regions = new List<string>();
+                    break;
             }
             foreach (var source in req.Source)
             {
-                    if (gates != null && source.Name.Equals("gateid"))
-                        gates.Add(source.Setting);
-                    if (regions != null && source.Name.Equals("regionid"))
-                        regions.Add(source.Setting);
+                if (gates != null && source.Name.Equals("gateid"))
+                    gates.Add(source.Setting);
+                if (regions != null && source.Name.Equals("regionid"))
+                    regions.Add(source.Setting);
             }
-            FenceMgr.Instance.Delete(gates, regions);
+            if(isDelete)
+                FenceMgr.Instance.Delete(gates, regions);
+            else
+                FenceMgr.Instance.AddBridge(gates, regions);
         }
 
         #endregion

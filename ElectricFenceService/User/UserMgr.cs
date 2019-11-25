@@ -27,6 +27,12 @@ namespace ElectricFenceService
             return JsonConvert.SerializeObject(_users, Formatting.Indented);
         }
 
+        public string ToJsonSafe()
+        {
+            var users = _users.CloneSafe();
+            return JsonConvert.SerializeObject(users, Formatting.Indented);
+        }
+
         private void loadData()
         {
             if (File.Exists(_path))
