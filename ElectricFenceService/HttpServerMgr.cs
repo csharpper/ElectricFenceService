@@ -243,11 +243,11 @@ namespace ElectricFenceService
             if (oldUser == null)
                 throw new InvalidCastException("更新失败，用户不存在。");
             
-            if(!string.IsNullOrEmpty(newUser.Password))
+            if(!string.IsNullOrEmpty(newUser.Password) || newUser.Password == "null")
                 oldUser.Password = newUser.Password;
             if(newUser.Longitude > -180 && newUser.Longitude <= 180)
                 oldUser.Longitude = newUser.Longitude;
-            if (newUser.Latitude > -85 && newUser.Longitude < 85)
+            if (newUser.Latitude > -85 && newUser.Latitude < 85)
                 oldUser.Latitude = newUser.Latitude;
             if (newUser.Scale > 1)
                 oldUser.Scale = newUser.Scale;
@@ -259,9 +259,9 @@ namespace ElectricFenceService
             string user = readHeader(headers, "user");
             string pass = readHeader(headers, "pass");
             string strLon = readHeader(headers, "lon");
-            string strLat = readHeader(headers, "lat");
+            string strLat = readHeader(headers, "lat"); 
             string strScale = readHeader(headers, "scale");
-            if (!string.IsNullOrEmpty(user))
+            if (string.IsNullOrEmpty(user))
                 throw new InvalidCastException("用户名无效。");
             double lon = 181;// 122.1458;
             if (!string.IsNullOrEmpty(strLon))

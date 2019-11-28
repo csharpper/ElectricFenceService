@@ -48,7 +48,9 @@ namespace ElectricFenceService.User
         {
             lock (_onlines)
             {
-                return _onlines.Remove(handle);
+                if(!string.IsNullOrEmpty(handle))
+                    return _onlines.Remove(handle);
+                return false;
             }
         }
 
