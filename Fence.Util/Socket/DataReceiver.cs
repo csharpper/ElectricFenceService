@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ElectricFenceService.Socket
+namespace Fence.Util
 {
     public abstract class DataReceiver : IDisposable
     {

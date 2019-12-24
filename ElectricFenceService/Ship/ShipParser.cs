@@ -13,7 +13,7 @@ namespace ElectricFenceService.Ship
         public Action<string> ShipEvent { get; set; }
         public void Add(string info)
         {
-            Common.Log.Logger.Default.Trace("received all : " + info);
+            //Common.Log.Logger.Default.Trace("received all : " + info);
             lock (obj)
             {
                 buffer += info;

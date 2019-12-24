@@ -2,15 +2,36 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace ElectricFenceService.Shield
+namespace Fence.Util
 {
     public class ShieldData
     {
         public List<ShieldInfo> Ships { get; set; } = new List<ShieldInfo>();
         public List<ShieldInfo> Types { get; set; } = new List<ShieldInfo>();
         public DateTime UpdatedTime { get; set; } = DateTime.MinValue;
+
+        public ShieldData Clone()
+        {
+            var res = new ShieldData()
+            {
+                UpdatedTime = UpdatedTime,
+            };
+            res.Ships = Ships.Select(_ => _.Clone()).ToList();
+            res.Types = Types.Select(_ => _.Clone()).ToList();
+            return res;
+        }
+
+        public bool IsShield(ShipInfo ship)
+        {
+            lock (Types)
+                if (Types.Any(_ => _.ID == ship.ShipCargoType))
+                    return true;
+            lock(Ships)
+                if (Types.Any(_ => _.ID == ship.MMSI))
+                    return true;
+            return false;
+        }
 
         public static string GetShipType(int type)
         {
@@ -37,7 +58,7 @@ namespace ElectricFenceService.Shield
                 case 33:
                     return "水下作业";
                 case 34:
-                    return "潜艇";
+                    return "潜水作业船";
                 case 35:
                     return "军舰";
                 case 36:
@@ -93,6 +114,23 @@ namespace ElectricFenceService.Shield
                     return "其他（D类）";
             }
             return "未知";
+        }
+
+        public static byte GetLevel(int type)
+        {
+            if (type >= 80 && type < 90)//油轮
+                return 15;
+            if (type >= 71 && type < 75)//危险品船
+                return 14;
+            if (type >= 70 && type < 80)//货船
+                return 10;
+            if (type >= 60 && type < 70)//客船
+                return 7;
+            if (type >= 31 && type < 33)
+                return 1;
+            if (type >= 50 && type < 56)
+                return 1;
+            return 10;
         }
     }
 }

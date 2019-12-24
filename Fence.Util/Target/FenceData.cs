@@ -70,6 +70,22 @@ namespace Fence.Util
                 addOrUpdate(Regions, t as FenceRegionsInfo);
         }
 
+        public TargetObj Get<T>(string id) where T : TargetObj
+        {
+            Type type = typeof(T);
+            switch (type.Name)
+            {
+                case nameof(Bridge):
+                    return Bridges.FirstOrDefault(_ => _.ID == id);
+                case nameof(GateInfo):
+                    return Gates.FirstOrDefault(_ => _.ID == id);
+                case nameof(FenceRegionsInfo):
+                    return Regions.FirstOrDefault(_ => _.ID == id);
+            }
+            return null;
+        }
+
+
         private void addOrUpdate<T>(List<T> list, T t) where T: TargetObj
         {
             if (!string.IsNullOrWhiteSpace(t.ID))
@@ -172,13 +188,19 @@ namespace Fence.Util
             return list.ToArray();
         }
 
+        public string[] GetGateIdsFromRegion(string id)
+        {
+            var gates = GetBridgeFromRegion(id);
+            return gates.OrderBy(_ => _.Priority).Select(_=>_.ID).ToArray();
+        }
+
         public GateInfo[] GetBridgeFromRegion(string id)
         {
             List<GateInfo> list = new List<GateInfo>();
-            var regions = Bridges?.Where(_ =>_.Links.Any(l=> l == id)).Select(_=>_.ID);
-            if (Gates != null && regions != null && regions.Count() > 0)
+            var gateIds = Gates.OrderBy(_ => _.Priority).Select(_ => _.ID).ToArray();
+            if (Gates != null && gateIds != null && gateIds.Count() > 0)
             {
-                foreach (var r in regions)
+                foreach (var r in gateIds)
                 {
                     var reg = Gates.FirstOrDefault(_ => _.ID == r);
                     if (reg != null)

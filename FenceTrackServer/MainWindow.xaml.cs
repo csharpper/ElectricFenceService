@@ -1,8 +1,8 @@
-﻿using ElectricFenceService;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -13,7 +13,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
-namespace ServerHost
+namespace FenceTrackServer
 {
     /// <summary>
     /// MainWindow.xaml 的交互逻辑
@@ -23,10 +23,6 @@ namespace ServerHost
         public MainWindow()
         {
             InitializeComponent();
-            //ShipMgr.Instance.Start("10.33.9.50", 8020);
-            ElectricFenceService.Fence.FenceTrackMgr.Instance.Start(ConfigData.ListenPort);
-            ShipMgr.Instance.Start(ConfigData.AisHost, ConfigData.AisPort);
-            HttpServerMgr.Instance.Start(ConfigData.WebSocketPort);
         }
     }
 }

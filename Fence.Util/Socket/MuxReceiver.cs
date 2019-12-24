@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ElectricFenceService.Socket
+namespace Fence.Util
 {
     public class MuxReceiver : DataReceiver
     {
@@ -13,10 +13,12 @@ namespace ElectricFenceService.Socket
         {
         }
 
+        Parser _parse = new Parser();
         protected override void received(byte[] buffer)
         {
             string info = Encoding.Default.GetString(buffer);
-            string[] ships = info.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            string[] ships = _parse.Parse(info);
+            //string[] ships = info.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var ship in ships)
             {
                 string[] settings = ship.Split(',');

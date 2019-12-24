@@ -1,5 +1,5 @@
 ﻿using ElectricFenceService.Ship;
-using ElectricFenceService.Socket;
+using Fence.Util;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -46,7 +46,6 @@ namespace ElectricFenceService
 
         void onDynamic(ShipInfo target)
         {
-            
             Set(target);
         }
         #endregion 船舶数据接收与解析
@@ -61,6 +60,7 @@ namespace ElectricFenceService
                 Ships.Add(info);
             }
             ShipHistoryMgr.Instance.Update(info);
+            Fence.ShipFenceMgr.Instance.Update(info);
         }
 
         public ShipInfo[] Get(string[] ids, DateTime start, DateTime end)

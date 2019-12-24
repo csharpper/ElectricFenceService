@@ -9,6 +9,7 @@ namespace Fence.Util
     public class FenceRegionsInfo: TargetObj
     {
         public string Name { get; set; }
+        public bool IsInner { get; set; }
         public PointD[] Region { get; set; }
         public string Comment { get; set; }
     }

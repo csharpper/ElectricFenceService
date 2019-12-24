@@ -33,6 +33,7 @@ namespace ElectricFenceService
 
         private void start(int port)
         {
+            Common.Log.Logger.Default.Trace("---------------start http server.-------------");
             if (port > 0 && port <= 65535)
             {
                 _port = port;
@@ -64,6 +65,7 @@ namespace ElectricFenceService
                 try
                 {
                     _httpListener?.Stop();
+                    Common.Log.Logger.Default.Trace("---------------stop http server.-------------");
                 }
                 catch { }
                 _thread = null;

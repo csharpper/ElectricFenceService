@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using Fence.Util;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,14 +13,21 @@ namespace ElectricFenceService.Shield
     {
         public readonly static ShieldMgr Instance = new ShieldMgr();
         ShieldData _datas;
-        string _path = "shield.json";
+        public Action ShieldChanged { get; set; }
+        string _path;
         ShieldMgr()
         {
+            _path = ConfigData.ShieldFileName;
             loadData();
         }
 
         public void Init()
         { }
+
+        public ShieldData GetShield()
+        {
+            return _datas.Clone();
+        }
 
         public string ToJson()
         {

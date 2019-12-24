@@ -6,7 +6,7 @@ using System.Text;
 namespace Fence.Util
 {
     /// <summary>
-    /// ID表示监控的ID
+    /// ID表示闸机的ID
     /// Links表示关联的区域
     /// </summary>
     public class Bridge: TargetObj
