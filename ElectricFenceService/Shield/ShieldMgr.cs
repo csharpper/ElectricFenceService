@@ -124,6 +124,7 @@ namespace ElectricFenceService.Shield
         private void save()
         {
             File.WriteAllText(_path, ToJson());
+            ShieldChanged?.Invoke();
         }
     }
 }

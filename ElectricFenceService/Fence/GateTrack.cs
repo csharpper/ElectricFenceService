@@ -57,7 +57,7 @@ namespace ElectricFenceService.Fence
                 shipDraftDepth = "0",
                 reportTime = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss"),
                 shipDistance = Math.Round(getDis(ship.Longitude, ship.Latitude, gate.Longitude, gate.Latitude)).ToString(),
-                objInner = isInner.ToString(),
+                objInner = (isInner?"1":"0"),
             };
         }
 
@@ -65,7 +65,7 @@ namespace ElectricFenceService.Fence
         {
             double dislon = (longitude1 - longitude2) * Math.Cos(latitude2 * Math.PI / 180);
             double disLat = latitude1 - latitude2;
-            return Math.Sqrt(dislon * dislon + disLat * disLat);
+            return Math.Sqrt(dislon * dislon + disLat * disLat) * 60 * 1852;
         }
     }
 }

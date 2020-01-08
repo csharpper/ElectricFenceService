@@ -25,100 +25,175 @@ namespace ElectricFenceService.Fence
             _listener.Start(port);
         }
 
-        public void UpdateTrack(PolygonInfo poly, ShipInfo ship, bool isInRegion)
+        public void UpdateTrack(PolygonInfo poly, ShipInfo ship, bool isInRegion,bool isChanged)
         {
             lock (_track)
             {
-                var history = _track.FirstOrDefault(_ => poly.RegionId == _.RegionId && _.Ship.ID == ship.ID);//查找该区域内是否有闸机在跟踪
-                if (isInRegion)//船舶位置在区域内
-                {
-                    if (history != null)
-                    {
-                        GateInfo gate = FenceMgr.Instance.Fence.Get<GateInfo>(history.GateId) as GateInfo;
-                        if (poly.IsInner)//该区域为内部区域
-                        {//不刷新，或修改为15分钟刷新一次
-                            //if (history.LastestTime > history.TrackTime.AddSeconds(Heartbeat))
-                                updateTrack(history, ship, poly.IsInner);
-                            //else
-                            //{//内部区域的目标，且该目标之前已刷新，此时不刷新。
-                            //    //Common.Log.Logger.Default.Trace(GateTrack.Add(ship, gate).ToJson());
-                            //    Common.Log.Logger.Default.Trace($"{ship.MMSI} - {ship.Name} 内部区域的目标，且该目标之前已刷新，此时不刷新 {poly.RegionId} - {poly.Name}");
-                            //    Console.WriteLine($"{DateTime.Now.TimeOfDay} {ship.MMSI} - {ship.Name} 内部区域的目标，且该目标之前已刷新，此时不刷新 {poly.RegionId} - {poly.Name}");
-                            //}
+                if (poly.IsInner && isInRegion)//船舶位置在内部区域内
+                    updateInInner(poly, ship, isChanged);
+                else if (!poly.IsInner && isInRegion)//船舶位置在外围区域内
+                    updateInOuter(poly, ship);
+                else if (poly.IsInner && !isInRegion)//船舶离开内部区域
+                    updateOutInner(poly, ship);
+                else//离开外部区域
+                    updateOutOuter(poly, ship);
+            }
+        }
 
-                        }
-                        else
-                            updateTrack(history, ship, poly.IsInner);
-                    }
-                    else
-                    {
-                        tryTrack(poly,ship);//尝试跟踪船舶
-                    }
-                }
-                else//船舶位置不在区域内
+        private void updateOutOuter(PolygonInfo poly, ShipInfo ship)
+        {
+            var historys = _track.Where(_ => poly.RegionId == _.RegionId && isSameShip(_.Ship, ship)).ToArray();//查找该区域内所有在跟踪该船的闸机列表
+            if (historys.Count()> 0)
+            {
+                foreach (var history in historys)
+                    onLeaved(history, ship, false, false);
+            }
+        }
+
+        bool isSameShip(ShipInfo ship1, ShipInfo ship2)
+        {
+            return ship1.ID == ship2.ID || (ship1.MMSI != 0 && ship1.MMSI == ship2.MMSI);
+        }
+
+        /// <summary>
+        /// 当船舶离开内部区域时
+        /// </summary>
+        private void updateOutInner(PolygonInfo poly, ShipInfo ship)
+        {
+            var historys = _track.Where(_ => poly.RegionId == _.RegionId).ToArray();//查找该区域内所有在跟踪的闸机
+            int count = historys.Count();//记录内部区域中跟踪的闸机总数
+            if (count > 0)
+            {//更新所有在跟踪内部区域船舶的闸机,推送其状态变化
+                foreach (var history in historys)
                 {
-                    var oldtrack = _track.FirstOrDefault(_ => _.Ship.ID == ship.ID && _.RegionId == poly.RegionId);
-                    if (oldtrack != null)
-                    {
-                        onLeaved(oldtrack, ship, poly.IsInner);
-                    }
+                    GateInfo gate = FenceMgr.Instance.Fence.Get<GateInfo>(history.GateId) as GateInfo;
+                    onLeaved(history, ship, true,poly.IsTracking);
                 }
             }
         }
 
         /// <summary>
-        /// 此处为船舶进入区域新记录，尝试添加球机进行跟踪
+        /// 当船舶在内部区域内时
         /// </summary>
-        /// <param name="ship"></param>
-        private void tryTrack(PolygonInfo poly, ShipInfo ship)
+        void updateInInner(PolygonInfo poly, ShipInfo ship, bool isChanged)
         {
-            string[] gates = poly.GateIds;//获取当前区域所有闸机列表
-            if (gates != null && gates.Length > 0)
-            {//遍历闸机列表，找到第一个空闲的闸机
-                int index = 0;
-                while (index < gates.Length)
+            var historys = _track.Where(_ => poly.RegionId == _.RegionId).ToArray();//查找该区域内所有在跟踪的闸机
+            int count = historys.Count();//记录内部区域中跟踪的闸机总数
+            if (count > 0)
+            {//更新所有在跟踪内部区域船舶的闸机,推送其状态变化
+                foreach (var history in historys)
                 {
-                    var gate = gates[index];
-                    if (_track.All(_ => _.GateId != gate))//当前的闸机不在正在跟踪的闸机列表中
-                    {
-                        var track = new GateTrackInfo(poly.RegionId, poly.IsInner, gate, ship);
-                        _track.Add(track);
-                        onTrack(track);
-                        break;
-                    }
-                    index++;
-                }
-                if (index >= gates.Length)//无空闲闸机可用时，找到正在跟踪列表中优先级低于当前优先级的闸机进行跟踪
-                {
-                    var trackings = _track.Where(track => gates.Any(_ => _ == track.GateId));//获取当前区域对应闸机的使用情况
-                    if (poly.IsInner)//如果新数据为内部区域，则只需要考虑替换内部区域的闸机
-                        trackings = trackings.Where(track => track.IsInner);
-                    ///获取优先级最低的一个跟踪记录，与当前船舶进行比较
-                    if (!tryReplace(trackings, ship, poly.IsInner))
-                    {//未找到可使用的闸机跟踪船舶
-                        Common.Log.Logger.Default.Trace($"{poly.RegionId} - {poly.Name} 未找到可用的闸机跟踪船舶 {ship.MMSI} - {ship.Name}");
-                        Console.WriteLine($"{DateTime.Now.TimeOfDay} {poly.RegionId} - {poly.Name} 未找到可用的闸机跟踪船舶 {ship.MMSI} - {ship.Name}");
-                    }
+                    GateInfo gate = FenceMgr.Instance.Fence.Get<GateInfo>(history.GateId) as GateInfo;
+                    updateTrack(history, ship, poly, isChanged);
                 }
             }
+
+            //调用所有空闲的闸机
+            string[] frees = getFreeGates(poly);
+            count += frees.Length;
+            foreach (var gateId in frees)
+            {
+                //GateInfo gate = FenceMgr.Instance.Fence.Get<GateInfo>(gateId) as GateInfo;
+                var track = new GateTrackInfo(poly.RegionId, poly.IsInner, gateId, ship);
+                _track.Add(track);
+                onTrack(track, isChanged);
+            }
+            if (count == 0)//说明没有闸机在跟踪内部区域，此时，抢占外围区域的闸机
+            {
+                string[] gates = poly.GateIds;//获取当前区域所有闸机列表
+                var trackings = _track.Where(track => gates.Any(_ => _ == track.GateId));//获取当前区域对应闸机的使用情况
+                tryReplace(trackings, ship, poly, isChanged);
+            }
         }
+
+        private void updateInOuter(PolygonInfo poly, ShipInfo ship)
+        {
+            ///优先调用前一次跟踪该船的闸机
+            var history = _track.FirstOrDefault(_ => poly.RegionId == _.RegionId && isSameShip(_.Ship, ship));//查找该区域内是否有闸机在跟踪该船
+            if (history != null)
+            {
+                updateTrack(history, ship, poly, false);//保持跟踪
+                return;
+            }
+            //其次调用空闲的闸机（优先级最高的一个）
+            string[] frees = getFreeGates(poly);
+            if (frees.Length > 0)//选取第一个空闲的闸机进行跟踪
+            {
+                var track = new GateTrackInfo(poly.RegionId, poly.IsInner, frees.First(), ship);
+                _track.Add(track);
+                updateTrack(track, ship, poly, false);
+                return;
+            }
+            //再次，选取可用的闸机
+            string[] gates = poly.GateIds;//获取当前区域所有闸机列表
+            var trackings = _track.Where(track => gates.Any(_ => _ == track.GateId));//获取当前区域对应闸机的使用情况
+            ///当没有空闲闸机时，优先选取多余的内部区域跟踪闸机
+            var inners = trackings.Where(_ => _.IsInner);//正在跟踪内部区域的闸机列表
+            if (inners.Count() > 1)//超过一个在跟踪内部区域的闸机
+            {
+                var inner = inners.First();
+                if (inner.Ship.MMSI == ship.MMSI)
+                {//同一个闸机继续跟踪（由内部区域改为外围区域）
+                    onLeaved(inner, ship, true, true);//通知离开内部区域，但不删除跟踪，一遍外部区域继续跟踪
+                }
+                inner.RegionId = poly.RegionId;
+                updateTrack(inner, ship, poly, false);
+                return;
+            }
+            //最后，找到所有外围在跟踪的列表，抢占优先级低的跟踪
+            var outers = trackings.Where(_ => !_.IsInner);
+            tryReplace(outers, ship, poly, false);
+        }
+
+        string[] getFreeGates(PolygonInfo poly)
+        {
+            List<string> frees = new List<string>();
+            string[] gates = poly.GateIds;
+            if (gates != null && gates.Length > 0)
+            {
+                for (int i = 0; i < gates.Length; i++)
+                {
+                    var gate = gates[i];
+                    if (_track.All(_ => _.GateId != gate))//找到空闲闸机
+                        frees.Add(gate);
+                }
+            }
+            return frees.ToArray();
+        }
+        
         /// <summary>
         /// 查找并替换低于该优先级的跟踪闸机
         /// </summary>
-        bool tryReplace(IEnumerable<GateTrackInfo> tracks, ShipInfo ship, bool isInner)
+        bool tryReplace(IEnumerable<GateTrackInfo> tracks, ShipInfo ship, PolygonInfo poly, bool isChanged)
         {
             if (tracks.Count() == 0)
                 return false;
-            var min = tracks.Min(_=>_.Priority);//获取优先级低于
-            int shipPrior = GateTrackInfo.GetPriority(ship, isInner);
+            ///查找外围跟踪超时的闸机进行跟踪
+            var timeouttrack = tracks.FirstOrDefault(_ => _.IsTimeout && !_.IsInner);
+            if (timeouttrack != null)
+            {
+                updateTrack(timeouttrack, ship, poly, isChanged);
+                return true;
+            }
+            ///尝试调用低优先级的船舶跟踪闸机进行跟踪
+            var min = tracks.Min(_=>_.Priority);//获取优先级最低值
+            int shipPrior = GateTrackInfo.GetPriority(ship, poly.IsInner);
             if (min < shipPrior)
             {
                 var track = tracks.FirstOrDefault(_ => _.Priority == min);
-                updateTrack(track, ship, isInner);
+                updateTrack(track, ship, poly, isChanged);
                 return true;
             }
+            else if (min == shipPrior)
+            {
+                var track = tracks.FirstOrDefault(_ => _.Priority == min);
+                if (track.Ship.MMSI == ship.MMSI && ship.MMSI != 0)//是否为同一条船
+                    updateTrack(track, ship, poly, isChanged);
+                else
+                    Common.Log.Logger.Default.Error($"未找到优先级较低的跟踪闸机。{track.RegionId} {ship.MMSI} - {ship.Name} {min} == {shipPrior} {track.Ship.MMSI},{track.Ship.Name}");
+            }
             else
-                Common.Log.Logger.Default.Trace($"未找到优先级较低的跟踪闸机。{min} >= {shipPrior}");
+                Common.Log.Logger.Default.Trace($"未找到优先级较低的跟踪闸机。{tracks?.FirstOrDefault()?.RegionId} {ship.MMSI} - {ship.Name} {min} > {shipPrior}");
             return false;
         }
 
@@ -127,33 +202,41 @@ namespace ElectricFenceService.Fence
         /// </summary>
         /// <param name="id"></param>
         /// <param name="ship"></param>
-        private void updateTrack(GateTrackInfo track, ShipInfo ship, bool isInner)
+        private void updateTrack(GateTrackInfo track, ShipInfo ship, PolygonInfo poly, bool isChanged)
         {
-            track.Update(ship, isInner);
-            onTrack(track);
+            track.Update(ship, poly.RegionId, poly.IsInner);
+            onTrack(track, isChanged);
         }
 
-        private void onTrack(GateTrackInfo track)
+        private void onTrack(GateTrackInfo track, bool isChanged = false)
         {
             track.TrackTime = DateTime.Now;
             ///此处添加对跟踪目标跟踪相关的内容
             GateInfo gate = FenceMgr.Instance.Fence.Get<GateInfo>(track.GateId) as GateInfo;
-            string strJson = GateTrack.Add(track.Ship, gate, track.IsInner).ToJson();
+            string strJson = null;
+            if(track.IsInner)
+                strJson= GateTrack.Add(track.Ship, gate, true, isChanged ? "1" : "3").ToJson();//首次进入内部区域的标记状态为1,心跳标记为3
+            else
+                strJson = GateTrack.Add(track.Ship, gate, false, "").ToJson();//外部区域，正常发送
             _listener?.Send(strJson);
             Common.Log.Logger.Default.Trace("send: track " + strJson);
             Console.WriteLine($"正在跟踪 - {strJson}");
         }
 
-        private void onLeaved(GateTrackInfo track, ShipInfo ship, bool isInner)
+        private void onLeaved(GateTrackInfo track, ShipInfo ship, bool isInner,bool isTracking = false)
         {
-            _track.Remove(track);
+            if(!isInner || !isTracking)//加入判断是考虑内部区域有其他船舶在跟踪时
+                _track.Remove(track);
             GateInfo gate = FenceMgr.Instance.Fence.Get<GateInfo>(track.GateId) as GateInfo;
-            var info = GateTrack.Add(ship, gate, isInner, "2").ToJson();
-            Common.Log.Logger.Default.Trace("send: leave " + info);
+            //if (!isInner)//非内部区域，不返回状态
+            //{
+            //    Console.WriteLine($"{DateTime.Now.TimeOfDay} {ship.MMSI} - {ship.Name} 船舶离开外围区域 {track.RegionId},结束闸机 {track.GateId}");
+            //    return;
+            //}
+            var info = GateTrack.Add(ship, gate, isInner, isInner?"2":"4").ToJson();//离开内部区域，返回2，离开外部区域，返回4
             _listener?.Send(info);
-            Common.Log.Logger.Default.Trace($"{ship.MMSI} - {ship.Name} 船舶离开区域 {track.RegionId},结束闸机 {track.GateId}");
+            Common.Log.Logger.Default.Trace($"{ship.MMSI} - {ship.Name} 船舶离开区域 {track.RegionId},结束闸机 {track.GateId} - {isInner}");
             Console.WriteLine($"{DateTime.Now.TimeOfDay} {ship.MMSI} - {ship.Name} 船舶离开区域 {track.RegionId},结束闸机 {track.GateId}");
         }
     }
-
 }

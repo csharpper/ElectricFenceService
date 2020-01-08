@@ -17,6 +17,8 @@ namespace ElectricFenceService.Fence
         public DateTime LastestTime { get; set; }//最后一次船舶数据刷新时间
         public DateTime TrackTime { get; set; }//最后一次跟踪时间
         public int Priority { get; private set; }
+
+        public bool IsTimeout { get { return LastestTime.AddSeconds(180) < DateTime.Now; } }
         public GateTrackInfo(string regionId, bool isInner, string gateId, ShipInfo ship)
         {
             RegionId = regionId;
@@ -29,9 +31,10 @@ namespace ElectricFenceService.Fence
             updatePriority();
         }
 
-        public void Update(ShipInfo ship, bool isInner)
+        public void Update(ShipInfo ship, string regionId, bool isInner)
         {
             Ship = ship;
+            RegionId = regionId;
             IsInner = isInner;
             LastestTime = DateTime.Now;
             updatePriority();
@@ -45,7 +48,7 @@ namespace ElectricFenceService.Fence
         public static int GetPriority(ShipInfo ship, bool isInner)
         {
             int priority = 0;
-            if (!isInner)
+            if (isInner)//内部优先级最高
                 priority += 0x4000000;
             int level = ShieldData.GetLevel(ship.ShipCargoType);
             priority += (level << 16);

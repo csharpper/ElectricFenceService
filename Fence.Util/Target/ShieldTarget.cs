@@ -28,7 +28,7 @@ namespace Fence.Util
                 if (Types.Any(_ => _.ID == ship.ShipCargoType))
                     return true;
             lock(Ships)
-                if (Types.Any(_ => _.ID == ship.MMSI))
+                if (Ships.Any(_ => _.ID == ship.MMSI))
                     return true;
             return false;
         }
@@ -36,7 +36,7 @@ namespace Fence.Util
         public static string GetShipType(int type)
         {
             if (type >= 20 & type < 30)
-                return "地面翼";
+                return "地效应船";
             if (type >= 40 & type < 50)
                 return "高速船（HSC）";
             if (type >= 60 & type < 70)
@@ -58,11 +58,11 @@ namespace Fence.Util
                 case 33:
                     return "水下作业";
                 case 34:
-                    return "潜水作业船";
+                    return "潜水作业";
                 case 35:
                     return "军舰";
                 case 36:
-                    return "航海船";
+                    return "航海";
                 case 37:
                     return "游艇";
                 case 50:

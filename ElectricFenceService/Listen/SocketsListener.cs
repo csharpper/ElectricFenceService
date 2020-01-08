@@ -15,7 +15,6 @@ namespace ElectricFenceService.Listen
         SocketHelper.SocketServer _server;
         List<SocketListener> _sockets = new List<SocketListener>();
         DateTime updatedTime = DateTime.Now;
-        public Action<string, double, double, double, double> GotoEvent;
 
         public void Start(int port)
         {
@@ -46,6 +45,7 @@ namespace ElectricFenceService.Listen
         public void Send(string message)
         {
             Send(Encoding.UTF8.GetBytes(message));
+            Thread.Sleep(10);//发送间隔不低于10ms
         }
 
         public void Send(byte[] buffer)

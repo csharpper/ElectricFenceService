@@ -64,7 +64,6 @@ namespace ElectricFenceService.Fence
                     foreach (var d in deleted)
                     {
                         _regions.Remove(d);
-                        d.TrackChanged -= onTrack;
                     }
                 }
 
@@ -92,7 +91,6 @@ namespace ElectricFenceService.Fence
                     else
                     {
                         var reg = new PolygonInfo(newReg, gateIds);
-                        reg.TrackChanged += onTrack;
                         _regions.Add(reg);
                     }
                 }
@@ -104,11 +102,22 @@ namespace ElectricFenceService.Fence
         {
             lock(_obj)
                 _shield = Shield.ShieldMgr.Instance.GetShield();
-        }
-
-        private void onTrack(PolygonInfo poly, ShipInfo ship, bool isInRegion)
-        {
-            Console.WriteLine($"{DateTime.Now} : {ship.ID} - {ship.Name} - {ship.Longitude},{ship.Latitude} => {(isInRegion ? "In Region" : "Leave Region")} {poly.RegionId}");
+            Common.Log.Logger.Default.Trace($"------------------------");
+            string str = $"更新当前围栏屏蔽数据。其中船舶数量：{_shield?.Ships?.Count()},AIS类别数量：{_shield?.Types?.Count()}";
+            if(_shield?.Ships!= null && _shield.Ships.Count > 0)
+            {
+                str += "。其中船舶MMSI：";
+                foreach (var sh in _shield.Ships)
+                    str += " " + sh.ID;
+            }
+            if (_shield?.Types != null && _shield.Types.Count > 0)
+            {
+                str += "。其中类别：";
+                foreach (var sh in _shield.Types)
+                    str += " " + sh.ID;
+            }
+            Common.Log.Logger.Default.Trace(str);
+            Common.Log.Logger.Default.Trace($"------------------------");
         }
 
         public void Update(ShipInfo ship)
@@ -139,6 +148,8 @@ namespace ElectricFenceService.Fence
                 _shipDicts[info.ID] = info;
             }
             //await Task.Yield();
+            if(info.MMSI ==0)
+                Common.Log.Logger.Default.Trace($"##################{info.ID}，{info.MMSI}:{info.Name} 雷达目标，不考虑雷达进入内部区域。");
             for (int i = 0; i < _regions.Count; i++)
                 _regions[i].Update(info);
             //Parallel.For(0, _regions.Count, i => _regions[i].Update(info));

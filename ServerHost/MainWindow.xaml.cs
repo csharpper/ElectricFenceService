@@ -24,9 +24,15 @@ namespace ServerHost
         {
             InitializeComponent();
             //ShipMgr.Instance.Start("10.33.9.50", 8020);
-            ElectricFenceService.Fence.FenceTrackMgr.Instance.Start(ConfigData.ListenPort);
-            ShipMgr.Instance.Start(ConfigData.AisHost, ConfigData.AisPort);
-            HttpServerMgr.Instance.Start(ConfigData.WebSocketPort);
+            int listenPort = 0;
+            if(int.TryParse(ConfigData.ListenPort, out listenPort) && listenPort > 0 && listenPort < 65535)
+                ElectricFenceService.Fence.FenceTrackMgr.Instance.Start(listenPort);
+            int aisPort = 0;
+            if (!string.IsNullOrEmpty(ConfigData.AisHost) && int.TryParse(ConfigData.AisPort, out aisPort) && aisPort > 0 && aisPort < 65535)
+                ShipMgr.Instance.Start(ConfigData.AisHost, aisPort);
+            int webSocketPort = 0;
+            if (int.TryParse(ConfigData.WebSocketPort, out webSocketPort) && webSocketPort > 0 && webSocketPort < 65535)
+                HttpServerMgr.Instance.Start(webSocketPort);
         }
     }
 }

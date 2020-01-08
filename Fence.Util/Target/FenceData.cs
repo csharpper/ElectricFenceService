@@ -191,18 +191,18 @@ namespace Fence.Util
         public string[] GetGateIdsFromRegion(string id)
         {
             var gates = GetBridgeFromRegion(id);
-            return gates.OrderBy(_ => _.Priority).Select(_=>_.ID).ToArray();
+            return gates.OrderBy(_ => _.Priority).Select(_=>_.ID).ToArray();//按优先级排序
         }
 
         public GateInfo[] GetBridgeFromRegion(string id)
         {
             List<GateInfo> list = new List<GateInfo>();
-            var gateIds = Gates.OrderBy(_ => _.Priority).Select(_ => _.ID).ToArray();
-            if (Gates != null && gateIds != null && gateIds.Count() > 0)
+            var gateIds = Bridges?.Where(_ => _.Links.Any(l => l == id)).Select(_ => _.ID);
+            if (Gates != null && gateIds.Count() > 0)
             {
-                foreach (var r in gateIds)
+                foreach (var gate in gateIds)
                 {
-                    var reg = Gates.FirstOrDefault(_ => _.ID == r);
+                    var reg = Gates.FirstOrDefault(_ => _.ID == gate);
                     if (reg != null)
                         list.Add(reg);
                 }
