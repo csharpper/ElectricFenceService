@@ -42,6 +42,8 @@ namespace ElectricFenceService.Fence
                     update(ship);
                 else
                     Thread.Sleep(1);
+                if(_updateTime.AddSeconds(10) < DateTime.Now)//每10秒清理一次超时目标
+                    updateTracking();
             }
         }
 
@@ -143,16 +145,26 @@ namespace ElectricFenceService.Fence
 
         public /*async*/ void update(ShipInfo info)
         {
+            bool isFirstData = true;
+            string shipId = info.MMSI != 0 ? info.MMSI.ToString() : info.ID;
             lock (_shipDicts)
             {
-                _shipDicts[info.ID] = info;
+                if ( _shipDicts.ContainsKey(shipId) && PolygonInfo.IsTimeout(_shipDicts[shipId]))//该船舶刷新超时
+                    isFirstData = false;
+                _shipDicts[shipId] = info;
             }
             //await Task.Yield();
-            if(info.MMSI ==0)
-                Common.Log.Logger.Default.Trace($"##################{info.ID}，{info.MMSI}:{info.Name} 雷达目标，不考虑雷达进入内部区域。");
-            for (int i = 0; i < _regions.Count; i++)
-                _regions[i].Update(info);
+            //if(info.MMSI ==0)
+            //    Common.Log.Logger.Default.Trace($"##################{info.ID}，{info.MMSI}:{info.Name} 雷达目标，不考虑雷达进入内部区域。");
+            _regions.ForEach(_=>_.Update(info, isFirstData));
             //Parallel.For(0, _regions.Count, i => _regions[i].Update(info));
+        }
+
+        DateTime _updateTime = DateTime.Now;
+        void updateTracking()
+        {
+            _regions.ForEach(_=>_.RemoveTimeoutTrack());
+            _updateTime = DateTime.Now;
         }
     }
 }

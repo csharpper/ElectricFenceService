@@ -129,7 +129,7 @@ namespace ElectricFenceService.Fence
             var trackings = _track.Where(track => gates.Any(_ => _ == track.GateId));//获取当前区域对应闸机的使用情况
             ///当没有空闲闸机时，优先选取多余的内部区域跟踪闸机
             var inners = trackings.Where(_ => _.IsInner);//正在跟踪内部区域的闸机列表
-            if (inners.Count() > 1)//超过一个在跟踪内部区域的闸机
+            if (inners.Count() > 1 || (inners.Count() == 1 && inners.First().IsTimeoutInner))//超过一个在跟踪内部区域的闸机
             {
                 var inner = inners.First();
                 if (inner.Ship.MMSI == ship.MMSI)
@@ -235,7 +235,7 @@ namespace ElectricFenceService.Fence
             //}
             var info = GateTrack.Add(ship, gate, isInner, isInner?"2":"4").ToJson();//离开内部区域，返回2，离开外部区域，返回4
             _listener?.Send(info);
-            Common.Log.Logger.Default.Trace($"{ship.MMSI} - {ship.Name} 船舶离开区域 {track.RegionId},结束闸机 {track.GateId} - {isInner}");
+            Common.Log.Logger.Default.Trace($"{ship.MMSI} - {ship.Name} 船舶离开区域 {track.RegionId},结束闸机 {track.GateId} - {isInner}\r\n{info}");
             Console.WriteLine($"{DateTime.Now.TimeOfDay} {ship.MMSI} - {ship.Name} 船舶离开区域 {track.RegionId},结束闸机 {track.GateId}");
         }
     }

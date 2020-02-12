@@ -18,7 +18,8 @@ namespace ElectricFenceService.Fence
         public DateTime TrackTime { get; set; }//最后一次跟踪时间
         public int Priority { get; private set; }
 
-        public bool IsTimeout { get { return LastestTime.AddSeconds(180) < DateTime.Now; } }
+        public bool IsTimeout { get { return LastestTime.AddMinutes(3) < DateTime.Now; } }
+        public bool IsTimeoutInner { get { return LastestTime.AddMinutes(15) < DateTime.Now; } }
         public GateTrackInfo(string regionId, bool isInner, string gateId, ShipInfo ship)
         {
             RegionId = regionId;

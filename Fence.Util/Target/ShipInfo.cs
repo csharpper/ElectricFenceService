@@ -22,6 +22,7 @@ namespace Fence.Util
         public double COG { get; set; }
         public double TrueHeading { get; set; }
         public DateTime UpdateTime { get; set; } = DateTime.Now;
+
         public string ToFormat()
         {
             string str = UpdateTime.ToString("yyyyMMddHHmmssfff");
