@@ -66,6 +66,7 @@ namespace ElectricFenceService.Fence
                     foreach (var d in deleted)
                     {
                         _regions.Remove(d);
+                        Common.Log.Logger.Default.Trace($"清除无效区域，{d.Name} - 区域ID {d.RegionId} - 闸机数量 {d.GateIds?.Length}。");
                     }
                 }
 
@@ -85,7 +86,7 @@ namespace ElectricFenceService.Fence
 
                 ///更新已有的区域，创建新增的区域
                 foreach (var newReg in regions)
-                {//未完成，此处未考虑闸机的优先级
+                {
                     var last = _regions.FirstOrDefault(_ => _.RegionId == newReg.ID);
                     var gateIds = FenceMgr.Instance.Fence.GetGateIdsFromRegion(newReg.ID); 
                     if (last != null)
@@ -149,14 +150,19 @@ namespace ElectricFenceService.Fence
             string shipId = info.MMSI != 0 ? info.MMSI.ToString() : info.ID;
             lock (_shipDicts)
             {
-                if ( _shipDicts.ContainsKey(shipId) && PolygonInfo.IsTimeout(_shipDicts[shipId]))//该船舶刷新超时
+                if ( _shipDicts.ContainsKey(shipId) && !PolygonInfo.IsTimeout(_shipDicts[shipId]))//该船舶存在历史数据且未刷新超时则认为非首次出现
                     isFirstData = false;
                 _shipDicts[shipId] = info;
             }
             //await Task.Yield();
             //if(info.MMSI ==0)
             //    Common.Log.Logger.Default.Trace($"##################{info.ID}，{info.MMSI}:{info.Name} 雷达目标，不考虑雷达进入内部区域。");
-            _regions.ForEach(_=>_.Update(info, isFirstData));
+            for (int i = 0; i < _regions.Count; i++)
+            {
+                if (_regions[i].Update(info, isFirstData))
+                    break;
+            }
+            //_regions.ForEach(_=>_.Update(info, isFirstData));
             //Parallel.For(0, _regions.Count, i => _regions[i].Update(info));
         }
 

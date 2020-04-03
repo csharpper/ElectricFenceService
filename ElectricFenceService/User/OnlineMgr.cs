@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -29,7 +30,10 @@ namespace ElectricFenceService.User
                 if (fi.Exists)
                 {
                     string info = File.ReadAllText(_path);
-                    _onlines = JsonConvert.DeserializeObject<Dictionary<string, OnlineInfo>>(info);
+                    IsoDateTimeConverter timeConverter = new IsoDateTimeConverter { DateTimeFormat = "yyyy-MM-dd HH:mm:ss" };
+                    _onlines = JsonConvert.DeserializeObject<Dictionary<string, OnlineInfo>>(info,timeConverter);
+                    Common.Log.Logger.Default.Trace("Loaded Onlines，\r\n"+ JsonConvert.SerializeObject(_onlines, Formatting.Indented,timeConverter));
+                    removeTimeouts();
                 }
             }
             catch (Exception ex)
@@ -38,11 +42,25 @@ namespace ElectricFenceService.User
             }
         }
 
+        void removeTimeouts()
+        {
+            var timeouts = _onlines.Where(_ => _.Value.UpdatedTime.AddDays(7) < DateTime.Now).ToArray();
+            if (timeouts.Length > 0)
+            {
+                foreach (var to in timeouts)
+                    _onlines.Remove(to.Key);
+                Common.Log.Logger.Default.Trace("删除过期登录数量：" + timeouts.Length);
+            }
+        }
+
         void save()
         {
             try
             {
-                File.WriteAllText(_path, JsonConvert.SerializeObject(_onlines, Formatting.Indented));
+                removeTimeouts();
+                    IsoDateTimeConverter timeConverter = new IsoDateTimeConverter { DateTimeFormat = "yyyy-MM-dd HH:mm:ss" };
+                File.WriteAllText(_path, JsonConvert.SerializeObject(_onlines, Formatting.Indented,timeConverter));
+                Common.Log.Logger.Default.Trace("Save Onlines，\r\n"+ JsonConvert.SerializeObject(_onlines, Formatting.Indented));
             }
             catch (Exception ex)
             {
@@ -110,14 +128,21 @@ namespace ElectricFenceService.User
 
         public class OnlineInfo: UserBase
         {
-            public string UserName { get; private set; }
-            public int Level { get; private set; }
-            public DateTime UpdatedTime { get; private set; }
-            public OnlineInfo(string user, int level)
+            public string UserName { get; set; }
+            public int Level { get; set; }
+            public DateTime UpdatedTime { get; set; }
+            public OnlineInfo()
+            {
+            }
+            public OnlineInfo(string user, int level):this(user,level,DateTime.Now)
+            {
+            }
+
+            public OnlineInfo(string user, int level, DateTime time)
             {
                 UserName = user;
                 Level = level;
-                UpdatedTime = DateTime.Now;
+                UpdatedTime = time;
             }
 
             public void Update()

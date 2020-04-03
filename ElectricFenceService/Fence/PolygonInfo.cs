@@ -30,8 +30,6 @@ namespace ElectricFenceService.Fence
         }
         public PolygonInfo(FenceRegionsInfo info,string[] gateIds)
         {
-            Common.Log.Logger.Default.Trace($"region:{info.Name} 闸机总数：" + gateIds?.Length);
-            RegionId = info.ID;
             UpdateRegion(info,gateIds);
         }
 
@@ -66,13 +64,13 @@ namespace ElectricFenceService.Fence
             }
         }
 
-        public void Update(ShipInfo ship, bool isFirstData)
+        public bool Update(ShipInfo ship, bool isFirstData)
         {
             string shipID = ship.MMSI == 0 ? ship.ID : ship.MMSI.ToString();
             if(IsInner && ship.MMSI == 0)//不考虑雷达目标在内部区域时
             {
                 //Common.Log.Logger.Default.Trace($"##################{ship.ID}，{ship.MMSI}:{ship.Name} InRegion {RegionId} {Name} - {IsInner},雷达目标，不考虑雷达进入内部区域。");
-                return;
+                return false;
             }
             lock (_obj)
             {
@@ -91,6 +89,7 @@ namespace ElectricFenceService.Fence
                         Tracks[shipID] = ship;
                     Common.Log.Logger.Default.Trace($"---------------{ship.ID}，{ship.MMSI}:{ship.Name} InRegion {RegionId} {Name} - {IsInner}. 第一次： {isFirst} - 船舶总数 {Tracks.Count}");
                     onTrack(ship, true, isFirst);
+                    return IsInner;//如果进入内部区域，返回true，结束接下来的监测。
                 }
                 else
                 {
@@ -105,6 +104,7 @@ namespace ElectricFenceService.Fence
                     }
                 }
             }
+            return false;
         }
 
         public void UpdateRegion(FenceRegionsInfo info,string[] gateIds)
@@ -116,7 +116,15 @@ namespace ElectricFenceService.Fence
                 GateIds = gateIds;
                 Regions = new PolygonD();
                 Regions.AddPoints(new PointDArray(info.Region));
+                RegionId = info.ID;
+
+                string gateStrs = "";
+                if(GateIds!= null)
+                    foreach (var gate in GateIds)
+                        gateStrs += " - " + gate;
+                Common.Log.Logger.Default.Trace($"更新区域，{Name} - 区域ID {RegionId} - 闸机数量 {GateIds?.Length}{gateStrs}。");
             }
+            Common.Log.Logger.Default.Trace($"region:{info.Name} 闸机总数：" + gateIds?.Length);
         }
 
         void onTrack(ShipInfo ship, bool isInRegion,bool isFirstChanged)

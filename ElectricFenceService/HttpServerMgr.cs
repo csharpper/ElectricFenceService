@@ -24,8 +24,6 @@ namespace ElectricFenceService
         object _obj = new object();
         public void Start(int port)
         {
-            if (_port == port)
-                return;
             Stop();
             lock (_obj)
                 start(port);
@@ -42,30 +40,32 @@ namespace ElectricFenceService
                 _httpListener.Prefixes.Add($"http://+:{port}/");
                 _httpListener.Start();
                 Common.Log.Logger.Default.Trace($"可通过http访问本机的{port}端口验证.");
-                _disposeEvent.Reset();
-                _thread = new Thread(new ThreadStart(delegate
-                {
-                    try { loop(); }
-                    catch { Stop(); }
-                }))
-                { IsBackground = true };
+                _thread = new Thread(loop) { IsBackground = true };
                 _thread.Start();
             }
             else
                 throw new InvalidCastException("未配置有效的端口");
         }
 
-        private void Stop()
+        void Stop()
+        {
+            _disposeEvent.Set();
+            _thread?.Join(15000);
+            stop();
+        }
+
+        private void stop()
         {
             lock (_obj)
             {
-                _thread?.Join(15000);
-                _port = 0;
-                _disposeEvent.Set();
                 try
                 {
-                    _httpListener?.Stop();
-                    Common.Log.Logger.Default.Trace("---------------stop http server.-------------");
+                    if (_httpListener != null)
+                    {
+                        _httpListener.Stop();
+                        Common.Log.Logger.Default.Trace("---------------stop http server.-------------");
+                        _httpListener = null;
+                    }
                 }
                 catch { }
                 _thread = null;
@@ -74,142 +74,156 @@ namespace ElectricFenceService
 
         void loop()
         {
-            int port = _port;
-            while (!_disposeEvent.WaitOne(0) && port == _port)
+            try
             {
-                HttpListenerContext context = _httpListener.GetContext();
-                HttpListenerRequest hRequest = context.Request;
-                HttpListenerResponse hResponse = context.Response;
-                using (StreamWriter writer = new StreamWriter(context.Response.OutputStream))
+                _disposeEvent.Reset();
+                while (!_disposeEvent.WaitOne(0))
                 {
-                    try
+                    HttpListenerContext context = _httpListener.GetContext();
+                    HttpListenerRequest hRequest = context.Request;
+                    HttpListenerResponse hResponse = context.Response;
+                    using (StreamWriter writer = new StreamWriter(context.Response.OutputStream))
                     {
-                        var endport = hRequest.RemoteEndPoint;
-                        string key = readHeader(hRequest.Headers,"handle");
-                        var onlineInfo = key != null ? OnlineMgr.Instance.GetOnlineInfo(key): null;
-                        HttpRequestInfo reqInfo = HttpRequestInfo.Create(hRequest.RawUrl);
-                        var headers = hRequest.Headers;
-                        if (reqInfo == null)
-                            writer.WriteLine("error,请输入有效的参数.");
-                        else
+                        try
                         {
-                            switch (reqInfo.Sort)
-                            {
-                                #region 用户登录、退出及用户操作
-                                case "login":
-                                    if (headers.AllKeys.Any(_ => _ == "user") && headers.AllKeys.Any(_ => _ == "pass"))
-                                        key = OnlineMgr.Instance.Login(headers["user"], headers["pass"]);
-                                    else
-                                        throw new InvalidCastException("未找到登录的用户名或密码。");
-                                    if (string.IsNullOrEmpty(key))
-                                        throw new InvalidCastException("用户名或密码错误。");
-                                    onlineInfo = OnlineMgr.Instance.GetOnlineInfo(key);
-                                    UserInfo userInfo = UserMgr.Instance.Get(onlineInfo.UserName);
-                                    writer.WriteLine($"{key},{userInfo.Longitude},{userInfo.Latitude},{userInfo.Scale},{onlineInfo.Level}");
-                                    break;
-                                case "logout":
-                                    OnlineMgr.Instance.Logout(key);
-                                    onlineInfo = null;
-                                    writer.WriteLine("seccess");
-                                    break;
-                                case "user":
-                                    writer.WriteLine(JsonConvert.SerializeObject(onlineInfo, Formatting.Indented));
-                                    break;
-                                case "users":
-                                    checkRead(onlineInfo);
-                                    writer.WriteLine(UserMgr.Instance.ToJsonSafe());
-                                    break;
-                                case "changepass":
-                                    if (onlineInfo == null)
-                                        throw new InvalidCastException("当前未登录或登录已过期,请退出重新登录.");
-                                    if (!headers.AllKeys.Any(_ => _ == "pass"))
-                                        throw new InvalidCastException("未找到新密码，修改失败.");
-                                    UserMgr.Instance.ChangePass(onlineInfo.UserName, headers["pass"]);
-                                    writer.WriteLine("seccess");
-                                    break;
-                                case "adduser":
-                                    checkWrite(onlineInfo);
-                                    addUser(headers);
-                                    writer.WriteLine("seccess");
-                                    break;
-                                case "updateuser":
-                                    checkWrite(onlineInfo);
-                                    updateUser(headers);
-                                    writer.WriteLine("seccess");
-                                    break;
-                                case "deleteuser":
-                                    checkWrite(onlineInfo);
-                                    int count = deleteUser(reqInfo.Source);
-                                    writer.WriteLine($"seccess,成功删除 {count} 个用户。");
-                                    break;
-                                #endregion 用户登录、退出及用户操作
-                                #region 围栏信息查询及增删改操作
-                                case "searchall":
-                                    writer.WriteLine(FenceMgr.Instance.ToJsonFromUser(onlineInfo));
-                                    break;
-                                case "gate":
-                                    checkRead(onlineInfo);
-                                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo), FenceNum.Gate));
-                                    break;
-                                case "region":
-                                    checkRead(onlineInfo);
-                                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo),FenceNum.Region));
-                                    break;
-                                case "gatebridge":
-                                    checkRead(onlineInfo);
-                                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo), FenceNum.BridgeGate));
-                                    break;
-                                case "regionbridge":
-                                    checkRead(onlineInfo);
-                                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo), FenceNum.BridgeRegion));
-                                    break;
-                                case "setregion":
-                                    checkWrite(onlineInfo);
-                                    FenceMgr.Instance.Set<FenceRegionsInfo>(hRequest.InputStream);
-                                    break;
-                                case "setgate":
-                                    checkWrite(onlineInfo);
-                                    FenceMgr.Instance.Set<GateInfo>(hRequest.InputStream);
-                                    break;
-                                case "deletegate":
-                                case "deleteregion":
-                                    checkWrite(onlineInfo);
-                                    settingFence(reqInfo);
-                                    writer.WriteLine("seccess");
-                                    break;
-                                case "setbridge":
-                                case "deletebridge":
-                                    checkRead(onlineInfo);
-                                    settingFence(reqInfo);
-                                    writer.WriteLine("seccess");
-                                    break;
-                                #endregion 围栏信息查询及增删改操作
-                                case "ship":
-                                    writeShipInfo(writer, reqInfo.Source);
-                                    break;
-                                case "shield":
-                                    checkWrite(onlineInfo);
-                                    writeShields(writer, reqInfo.Source);
-                                    break;
-                                default:
-                                    writer.WriteLine("error,不支持的消息字段.");
-                                    break;
-                            }
-
+                            var endport = hRequest.RemoteEndPoint;
+                            string key = readHeader(hRequest.Headers, "handle");
+                            var onlineInfo = key != null ? OnlineMgr.Instance.GetOnlineInfo(key) : null;
+                            HttpRequestInfo reqInfo = HttpRequestInfo.Create(hRequest.RawUrl);
+                            var headers = hRequest.Headers;
+                            if (reqInfo == null)
+                                writer.WriteLine("error,请输入有效的参数.");
+                            else
+                                updateMessage(hRequest, writer, key, ref onlineInfo, reqInfo, headers);
+                        }
+                        catch (InvalidCastException ex)
+                        {
+                            writer.WriteLine("error," + ex.Message);
+                            Common.Log.Logger.Default.Error("error," + ex.Message);
+                        }
+                        catch (Exception ex)
+                        {
+                            writer.WriteLine("error,解析错误." + ex.Message);
+                            Common.Log.Logger.Default.Error("error,解析错误," + ex.Message);
                         }
                     }
-                    catch (InvalidCastException ex)
-                    {
-                        writer.WriteLine("error," + ex.Message);
-                    }
-                    catch (Exception ex)
-                    {
-                        writer.WriteLine("error,解析错误." + ex.Message);
-                    }
                 }
+                _thread = null;
+                stop();
             }
-            _thread = null;
-            Stop();
+            catch(Exception ex)
+            {
+                Common.Log.Logger.Default.Error("http server error.", ex);
+                stop();
+                Thread.Sleep(15000);
+                loop();
+            }
+        }
+
+        private void updateMessage(HttpListenerRequest hRequest, StreamWriter writer, string key, ref OnlineMgr.OnlineInfo onlineInfo, HttpRequestInfo reqInfo, System.Collections.Specialized.NameValueCollection headers)
+        {
+            switch (reqInfo.Sort)
+            {
+                #region 用户登录、退出及用户操作
+                case "login":
+                    if (headers.AllKeys.Any(_ => _ == "user") && headers.AllKeys.Any(_ => _ == "pass"))
+                        key = OnlineMgr.Instance.Login(headers["user"], headers["pass"]);
+                    else
+                        throw new InvalidCastException("未找到登录的用户名或密码。");
+                    if (string.IsNullOrEmpty(key))
+                        throw new InvalidCastException("用户名或密码错误。");
+                    onlineInfo = OnlineMgr.Instance.GetOnlineInfo(key);
+                    UserInfo userInfo = UserMgr.Instance.Get(onlineInfo.UserName);
+                    writer.WriteLine($"{key},{userInfo.Longitude},{userInfo.Latitude},{userInfo.Scale},{onlineInfo.Level}");
+                    break;
+                case "logout":
+                    OnlineMgr.Instance.Logout(key);
+                    onlineInfo = null;
+                    writer.WriteLine("seccess");
+                    break;
+                case "user":
+                    writer.WriteLine(JsonConvert.SerializeObject(onlineInfo, Formatting.Indented));
+                    break;
+                case "users":
+                    checkRead(onlineInfo);
+                    writer.WriteLine(UserMgr.Instance.ToJsonSafe());
+                    break;
+                case "changepass":
+                    if (onlineInfo == null)
+                        throw new InvalidCastException("当前未登录或登录已过期,请退出重新登录.");
+                    if (!headers.AllKeys.Any(_ => _ == "pass"))
+                        throw new InvalidCastException("未找到新密码，修改失败.");
+                    UserMgr.Instance.ChangePass(onlineInfo.UserName, headers["pass"]);
+                    writer.WriteLine("seccess");
+                    break;
+                case "adduser":
+                    checkWrite(onlineInfo);
+                    addUser(headers);
+                    writer.WriteLine("seccess");
+                    break;
+                case "updateuser":
+                    checkWrite(onlineInfo);
+                    updateUser(headers);
+                    writer.WriteLine("seccess");
+                    break;
+                case "deleteuser":
+                    checkWrite(onlineInfo);
+                    int count = deleteUser(reqInfo.Source);
+                    writer.WriteLine($"seccess,成功删除 {count} 个用户。");
+                    break;
+                #endregion 用户登录、退出及用户操作
+                #region 围栏信息查询及增删改操作
+                case "searchall":
+                    writer.WriteLine(FenceMgr.Instance.ToJsonFromUser(onlineInfo));
+                    break;
+                case "gate":
+                    checkRead(onlineInfo);
+                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo), FenceNum.Gate));
+                    break;
+                case "region":
+                    checkRead(onlineInfo);
+                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo), FenceNum.Region));
+                    break;
+                case "gatebridge":
+                    checkRead(onlineInfo);
+                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo), FenceNum.BridgeGate));
+                    break;
+                case "regionbridge":
+                    checkRead(onlineInfo);
+                    writer.WriteLine(FenceMgr.Instance.Read(getIds(reqInfo), FenceNum.BridgeRegion));
+                    break;
+                case "setregion":
+                    checkWrite(onlineInfo);
+                    FenceMgr.Instance.Set<FenceRegionsInfo>(hRequest.InputStream);
+                    break;
+                case "setgate":
+                    checkWrite(onlineInfo);
+                    FenceMgr.Instance.Set<GateInfo>(hRequest.InputStream);
+                    break;
+                case "deletegate":
+                case "deleteregion":
+                    checkWrite(onlineInfo);
+                    settingFence(reqInfo);
+                    writer.WriteLine("seccess");
+                    break;
+                case "setbridge":
+                case "deletebridge":
+                    checkRead(onlineInfo);
+                    settingFence(reqInfo);
+                    writer.WriteLine("seccess");
+                    break;
+                #endregion 围栏信息查询及增删改操作
+                case "ship":
+                    writeShipInfo(writer, reqInfo.Source);
+                    break;
+                case "shield":
+                    checkWrite(onlineInfo);
+                    writeShields(writer, reqInfo.Source);
+                    break;
+                default:
+                    writer.WriteLine("error,不支持的消息字段.");
+                    break;
+            }
         }
 
         private string[] getIds(HttpRequestInfo reqInfo)

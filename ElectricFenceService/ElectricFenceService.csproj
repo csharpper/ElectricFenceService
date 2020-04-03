@@ -73,7 +73,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Shield\ShieldMgr.cs" />
     <Compile Include="Ship\ShipHistoryMgr.cs" />
-    <Compile Include="Ship\ShipInfo.cs" />
     <Compile Include="Ship\ShipMgr.cs" />
     <Compile Include="Ship\ShipParser.cs" />
     <Compile Include="User\OnlineMgr.cs" />

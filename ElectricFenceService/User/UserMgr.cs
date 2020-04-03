@@ -60,6 +60,7 @@ namespace ElectricFenceService
         {
             lock(_users)
                 _users.AddOrUpdate(region);
+            save();
         }
 
         public void ChangePass(string user, string pass)
@@ -71,6 +72,7 @@ namespace ElectricFenceService
                     var u = _users.Users[user].Clone();
                     u.Password = pass;
                     _users.AddOrUpdate(u);
+                    save();
                 }
             }
         }
@@ -126,6 +128,7 @@ namespace ElectricFenceService
                     }
                 }
             }
+            save();
             return count;
         }
 
