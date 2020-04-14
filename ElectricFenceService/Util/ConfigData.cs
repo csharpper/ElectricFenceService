@@ -22,6 +22,7 @@ namespace ElectricFenceService
         public static string ListenPort { get; private set; }
 		[DefaultSettingValue("15")]
         public static string TimeoutMinutes { get; private set; }
+        
         static ConfigData()
         {
             foreach (var property in typeof(ConfigData).GetProperties())

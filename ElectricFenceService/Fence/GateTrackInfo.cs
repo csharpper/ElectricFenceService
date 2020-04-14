@@ -1,4 +1,5 @@
-﻿using Fence.Util;
+﻿using ElectricFenceService.Track;
+using Fence.Util;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,52 +10,87 @@ namespace ElectricFenceService.Fence
 {
     public class GateTrackInfo
     {
-        public string RegionId { get; set; }    //区域对应的ID
-        public bool IsInner { get; set; }   //区域是否为内部区域
-        public string GateId { get; set; }//
-        public ShipInfo Ship { get; set; }
-        public DateTime CreateTime { get; set; } = DateTime.Now;//创建时间，即进入时间
-        public DateTime LastestTime { get; set; }//最后一次船舶数据刷新时间
-        public DateTime TrackTime { get; set; }//最后一次跟踪时间
-        public int Priority { get; private set; }
-
-        public bool IsTimeout { get { return LastestTime.AddMinutes(3) < DateTime.Now; } }
-        public bool IsTimeoutInner { get { return LastestTime.AddMinutes(15) < DateTime.Now; } }
-        public GateTrackInfo(string regionId, bool isInner, string gateId, ShipInfo ship)
+        public string GateId { get { return Gate.ID; } }
+        public GateInfo Gate { get; }
+        public ShipTrackConfig Ship { get; private set; }
+        public string ShipID
         {
-            RegionId = regionId;
-            IsInner = isInner;
-            GateId = gateId;
-            Ship = ship;
-            CreateTime = DateTime.Now;
-            LastestTime = DateTime.Now;
-            TrackTime = DateTime.Now;
-            updatePriority();
+            get
+            {
+                if (Ship?.Ship == null)
+                    return null;
+                var ship = Ship.Ship;
+                if (ship.MMSI > 0)
+                    return ship.MMSI.ToString();
+                return ship.ID;
+            }
+        }
+        public GateTrackStatus TrackStatus { get; set; } = GateTrackStatus.UnWorking;
+
+        public GateTrackInfo(GateInfo gate, ShipTrackConfig ship)
+        {
+            Gate = gate;
+            Update(ship);
         }
 
-        public void Update(ShipInfo ship, string regionId, bool isInner)
+        public void Update(ShipTrackConfig ship)
         {
-            Ship = ship;
-            RegionId = regionId;
-            IsInner = isInner;
-            LastestTime = DateTime.Now;
-            updatePriority();
+            if (ShipID != ship.Ship.ID && ShipID != ship.Ship.MMSI.ToString())
+                Ship = ship;
+            else
+            {
+                bool isAlarm = (ship.OutstandTime == ship.Ship.UpdateTime && !ship.IsOutstanded) && Ship.OutstandTime != ship.OutstandTime;
+                bool isOut = ship.MoveOutTime != DateTime.MinValue;
+                bool lastIsOut = Ship.MoveOutTime != DateTime.MinValue;
+                if (isOut != lastIsOut)
+                    Ship.Update(ship.Ship, isAlarm, isOut);
+                else
+                    Ship.Update(ship.Ship, isAlarm);
+            }
+        }
+        
+        /// <summary>是否为内部区域停止的闸机跟踪</summary>
+        public bool IsInInnered
+        {//内部区域信号，不处于报警阶段，信号没有离开区域
+            get { return TrackStatus == GateTrackStatus.InnerTrack && !Ship.IsOutstanding && Ship.MoveOutTime != DateTime.MinValue; }
         }
 
-        private void updatePriority()
+        public GateTrack GetGateTrack()
         {
-            Priority = GetPriority(Ship, IsInner);
+            bool isOut = Ship.IsMoved;
+            if (TrackStatus == GateTrackStatus.InnerTrack)
+            {
+                if (Ship.IsOutstanding)//报警阶段
+                {
+                    if (!Ship.IsOutstanded)//未发送过报警事件
+                    {
+                        if(!isOut)//进港报警
+                            return GateTrack.Add(Ship.Ship, Gate, true, "1");
+                        else//进港报警
+                            return GateTrack.Add(Ship.Ship, Gate, true, "2");
+                    }
+                    if(isOut)//已经离开内部区域，发布外围跟踪消息
+                        return GateTrack.Add(Ship.Ship, Gate, false, "");
+                }
+                if (!isOut)//非报警内部信号刷新，发送内部心跳
+                    return GateTrack.Add(Ship.Ship, Gate, true, "3");
+            }
+            else//外围区域
+            {
+                if (!isOut)//外围区域内部
+                    return GateTrack.Add(Ship.Ship, Gate, false, "");
+                else if (Ship.IsMovedTimeout())
+                    return GateTrack.Add(Ship.Ship, Gate, false, "4");
+            }
+            return null;
         }
+    }
 
-        public static int GetPriority(ShipInfo ship, bool isInner)
-        {
-            int priority = 0;
-            if (isInner)//内部优先级最高
-                priority += 0x4000000;
-            int level = ShieldData.GetLevel(ship.ShipCargoType);
-            priority += (level << 16);
-            priority += (int)ship.Length;
-            return priority;
-        }
+    public enum GateTrackStatus
+    {
+        UnWorking,//闲置的，未跟踪任何船舶
+        InnerTrack,//内部区域跟踪
+        OuterTrack,//外围自动跟踪
+        HandTrack,//手动跟踪
     }
 }

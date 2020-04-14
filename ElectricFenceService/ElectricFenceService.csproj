@@ -63,8 +63,10 @@
     <Compile Include="Fence\GateTrack.cs" />
     <Compile Include="Fence\GateTrackInfo.cs" />
     <Compile Include="Fence\FenceTrackMgr.cs" />
-    <Compile Include="Fence\PolygonInfo.cs" />
+    <Compile Include="Fence\PolygonTrack.cs" />
     <Compile Include="Fence\ShipFenceMgr.cs" />
+    <Compile Include="Track\ShipTrackConfig.cs" />
+    <Compile Include="Track\TrackEventMgr.cs" />
     <Compile Include="HttpServerMgr.cs" />
     <Compile Include="Http\HttpRequestInfo.cs" />
     <Compile Include="Http\SortSource.cs" />
@@ -80,6 +82,7 @@
     <Compile Include="User\UserData.cs" />
     <Compile Include="User\UserInfo.cs" />
     <Compile Include="Util\ConfigData.cs" />
+    <Compile Include="Util\ConfigDataMgr.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Fence.Util\Fence.Util.csproj">

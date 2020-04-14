@@ -23,6 +23,19 @@ namespace Fence.Util
         public double TrueHeading { get; set; }
         public DateTime UpdateTime { get; set; } = DateTime.Now;
 
+        public int Priority
+        {
+            get
+            {
+                int priority = 0;
+                int level = ShieldData.GetLevel(ShipCargoType);
+                priority += (level << 16);
+                if(MMSI > 0)
+                    priority += (int)Length;
+                return priority;
+            }
+        }
+
         public string ToFormat()
         {
             string str = UpdateTime.ToString("yyyyMMddHHmmssfff");

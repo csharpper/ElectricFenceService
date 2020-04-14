@@ -1,4 +1,5 @@
-﻿using Fence.Util;
+﻿using ElectricFenceService.Util;
+using Fence.Util;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,7 +12,7 @@ namespace ElectricFenceService.Fence
     public class ShipFenceMgr
     {
         public readonly static ShipFenceMgr Instance = new ShipFenceMgr();
-        List<PolygonInfo> _regions = new List<PolygonInfo>();//记录区域的列表,区域关联的闸机，并将区域重新封装，用于点是否在区域中的判断。
+        public List<PolygonTrack> Regions { get; private set; } = new List<PolygonTrack>();//记录区域的列表,区域关联的闸机，并将区域重新封装，用于点是否在区域中的判断。
         Dictionary<string, ShipInfo> _shipDicts = new Dictionary<string, ShipInfo>();//记录所有船舶最后一条数据
         Dictionary<string, List<string>> _regionShips = new Dictionary<string, List<string>>();//设置关联船舶，记录每个区域内关联的所有船舶
         ShieldData _shield = null;
@@ -53,24 +54,24 @@ namespace ElectricFenceService.Fence
 
         private void load()
         {//更新区域
-            lock (_regions)
+            lock (Regions)
             {
                 Shield.ShieldMgr.Instance.ShieldChanged += onShield;
                 onShield();
                 var bridges = FenceMgr.Instance.Fence.Bridges;
                 var regions = FenceMgr.Instance.Fence.Regions;
                 ///删除过期的区域
-                var deleted = _regions.Where(_ => regions.FirstOrDefault(d => d.ID == _.RegionId) == null).ToArray();
+                var deleted = Regions.Where(_ => regions.FirstOrDefault(d => d.ID == _.RegionId) == null).ToArray();
                 if(deleted != null && deleted.Count() > 0)
                 {
                     foreach (var d in deleted)
                     {
-                        _regions.Remove(d);
+                        Regions.Remove(d);
                         Common.Log.Logger.Default.Trace($"清除无效区域，{d.Name} - 区域ID {d.RegionId} - 闸机数量 {d.GateIds?.Length}。");
                     }
                 }
 
-                foreach (var reg in _regions)
+                foreach (var reg in Regions)
                 {//更新已有的区域
                     var newDt = regions.FirstOrDefault(_ => _.ID == reg.RegionId);
                     if (newDt != null)
@@ -87,17 +88,17 @@ namespace ElectricFenceService.Fence
                 ///更新已有的区域，创建新增的区域
                 foreach (var newReg in regions)
                 {
-                    var last = _regions.FirstOrDefault(_ => _.RegionId == newReg.ID);
+                    var last = Regions.FirstOrDefault(_ => _.RegionId == newReg.ID);
                     var gateIds = FenceMgr.Instance.Fence.GetGateIdsFromRegion(newReg.ID); 
                     if (last != null)
                         last.UpdateRegion(newReg, gateIds);
                     else
                     {
-                        var reg = new PolygonInfo(newReg, gateIds);
-                        _regions.Add(reg);
+                        var reg = new PolygonTrack(newReg, gateIds);
+                        Regions.Add(reg);
                     }
                 }
-                _regions = _regions.OrderBy(_ => _.IsInner).ToList();
+                //Regions = Regions.OrderBy(_ => _.IsInner).ToList();
             }
         }
 
@@ -144,24 +145,29 @@ namespace ElectricFenceService.Fence
             }
         }
 
+        public bool IsTimeout(ShipInfo ship)
+        {
+            return ship.UpdateTime.AddSeconds(ConfigDataMgr.SignalTimeout) < DateTime.Now;
+        }
+
         public /*async*/ void update(ShipInfo info)
         {
             bool isFirstData = true;
             string shipId = info.MMSI != 0 ? info.MMSI.ToString() : info.ID;
             lock (_shipDicts)
             {
-                if ( _shipDicts.ContainsKey(shipId) && !PolygonInfo.IsTimeout(_shipDicts[shipId]))//该船舶存在历史数据且未刷新超时则认为非首次出现
+                if ( _shipDicts.ContainsKey(shipId) && !IsTimeout(_shipDicts[shipId]))//该船舶存在历史数据且未刷新超时则认为非首次出现
                     isFirstData = false;
                 _shipDicts[shipId] = info;
             }
             //await Task.Yield();
             //if(info.MMSI ==0)
             //    Common.Log.Logger.Default.Trace($"##################{info.ID}，{info.MMSI}:{info.Name} 雷达目标，不考虑雷达进入内部区域。");
-            for (int i = 0; i < _regions.Count; i++)
+            for (int i = 0; i < Regions.Count; i++)
             {
-                if (_regions[i].Update(info, isFirstData))
-                    break;
+                Regions[i].Update(info, isFirstData);
             }
+            FenceTrackMgr.Instance.Update();
             //_regions.ForEach(_=>_.Update(info, isFirstData));
             //Parallel.For(0, _regions.Count, i => _regions[i].Update(info));
         }
@@ -169,7 +175,7 @@ namespace ElectricFenceService.Fence
         DateTime _updateTime = DateTime.Now;
         void updateTracking()
         {
-            _regions.ForEach(_=>_.RemoveTimeoutTrack());
+            Regions.ForEach(_=>_.RemoveTimeoutTrack());
             _updateTime = DateTime.Now;
         }
     }
