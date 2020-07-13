@@ -13,6 +13,6 @@ namespace ElectricFenceService.Util
         /// <summary>船舶信号超时时间</summary>
         public static int SignalTimeout { get; set; } = 15 * 60;
         /// <summary>雷达信号超时时间</summary>
-        public static double RadarTimeout { get; set; } = 10;
+        public static double RadarTimeout { get; set; } = 15;
     }
 }

@@ -19,6 +19,8 @@ namespace ElectricFenceService.Fence
         public bool IsTracking { get { return Tracks.Count > 0; } }
         public string[] GateIds { get; private set; }
         object _obj = new object();
+        public RectangleD ValidPoly = RectangleD.FromLTRB(106, 16, 125, 60);
+        public RectangleD _strictValidPoly = RectangleD.FromLTRB(106, 16, 125, 60);
 
         public PolygonTrack(FenceRegionsInfo info,string[] gateIds)
         {
@@ -62,7 +64,11 @@ namespace ElectricFenceService.Fence
                 {
                     bool isAlarm = !isFirstData && IsInner && lastTrack == null;//不考虑首次刷新的内部区域的船舶（此时认为该船不是刚进入区域
                     if (lastTrack == null)//无历史跟踪数据
+                    {
+                        if (!IsInner && ship.SOG < 1)//外围区域速度过慢的船舶不启用跟踪
+                            return;
                         Tracks[shipID] = new ShipTrackConfig(ship, isAlarm);
+                    }
                     else
                         lastTrack.Update(ship, isAlarm, false);
                     trace($"-----------船舶 {ship.ID}:{ship.Name} 进入区域 {RegionId} {Name} - {IsInner}.报警：{isAlarm} - 跟踪总数 {Tracks.Count}");
@@ -70,6 +76,15 @@ namespace ElectricFenceService.Fence
                 }
                 else if (lastTrack != null)//当前船舶不在区域内,且该船历史在区域内跟踪
                 {
+                    if (!ValidPoly.Contains(ship.Longitude, ship.Latitude))//信号严重偏移且上一次在区域内，此时认为信号错误。2.4海里
+                    {
+                        Common.Log.Logger.Default.Error($"明显异常的船舶 {ship.MMSI},{ship.Name} : {lastTrack.Ship.Longitude},{lastTrack.Ship.Latitude} -> {ship.Longitude},{ship.Latitude}");
+                        return;
+                    }
+                    else if (!_strictValidPoly.Contains(ship.Longitude, ship.Latitude))//信号有一定的偏移且上一次在区域内，此时认为可能会信号错误。0.6海里
+                    {
+                        Common.Log.Logger.Default.Error($"可能异常的船舶 {ship.MMSI},{ship.Name} : {lastTrack.Ship.Longitude},{lastTrack.Ship.Latitude} -> {ship.Longitude},{ship.Latitude}");
+                    }
                     if (!lastTrack.IsMoved || IsInner)//不考虑已经离开之后外围船舶的刷新
                     {
                         lastTrack.Update(ship, IsInner && !lastTrack.IsMoved, true);
@@ -90,6 +105,13 @@ namespace ElectricFenceService.Fence
                 Regions = new PolygonD();
                 Regions.AddPoints(new PointDArray(info.Region));
                 RegionId = info.ID;
+
+                double left = info.Region.Min(r => r.X);
+                double right = info.Region.Max(r => r.X);
+                double top = info.Region.Min(r => r.Y);
+                double bottom = info.Region.Max(r => r.Y);
+                ValidPoly = RectangleD.FromLTRB(left - 0.04, top - 0.04, right + 0.04, bottom + 0.04); 
+                _strictValidPoly = RectangleD.FromLTRB(left - 0.01, top - 0.01, right + 0.01, bottom + 0.01);
                 string gateStrs = "";
                 if(GateIds!= null)
                     foreach (var gate in GateIds)
@@ -119,36 +141,35 @@ namespace ElectricFenceService.Fence
         /// </summary>
         /// <param name="tracks">当前闸机列表中正在跟踪的闸机状况</param>
         /// <param name="shipId"></param>
-        public void UpdateTrack(GateTrackInfo[] tracks , string shipId)
+        public bool UpdateTrack(GateTrackInfo[] tracks , string shipId)
         {
             lock (_obj)
             {
                 if (IsInner)
-                    updateInner(tracks, shipId);
+                    return updateInner(tracks, shipId);
                 else
-                    updateOuter(tracks, shipId);
+                    return updateOuter(tracks, shipId);
             }
         }
 
-        private void updateInner(GateTrackInfo[] tracks, string shipId)
+        private bool updateInner(GateTrackInfo[] tracks, string shipId)
         {
             var shipInfo = Tracks[shipId];
             if (shipInfo.IsOutstanding)//进出港报警时间段内
             {
                 if (!shipInfo.IsOutstanded)//此前未向外提供报警信息，发送报警信息
-                    updateAlarm(tracks, shipInfo, shipId);
+                    return updateAlarm(tracks, shipInfo, shipId);
                 else//已经向外提供过进出港报警，此处刷新跟踪信息
-                {
-                    tryKeepTrack(tracks, shipInfo, shipId);//调用前一次跟踪该船的闸机继续跟踪
-                }
+                    return tryKeepTrack(tracks, shipInfo, shipId);//调用前一次跟踪该船的闸机继续跟踪
             }
             else//非进出港报警阶段船舶内部数据刷新
-                updateInInner(tracks, shipInfo);
+                return updateInInner(tracks, shipInfo);
         }
 
         /// <summary>在港船舶心跳</summary>
-        private void updateInInner(GateTrackInfo[] tracks, ShipTrackConfig shipInfo)
+        private bool updateInInner(GateTrackInfo[] tracks, ShipTrackConfig shipInfo)
         {
+            bool result = false;
             if (shipInfo.MoveOutTime == DateTime.MinValue)//确保船舶数据在港内
             {
                 string[] freeGates = getFreeGates(tracks);
@@ -156,35 +177,36 @@ namespace ElectricFenceService.Fence
                 {
                     trace($"_+_+{RegionId} {Name} 尝试刷新{freeGates.Length}个闸机。+_+_");
                     foreach (var free in freeGates)//刷新所有空闲的闸机
-                        tryReplaceGate(tracks, shipInfo, free);
+                        result = result || tryReplaceGate(tracks, shipInfo, free);
                 }
                 else
-                    tryReplaceLowPrior(tracks, shipInfo, true);//此时内部区域无闸机可用，选择外围区域跟踪中优先级最低的闸机进行跟踪
+                    result = tryReplaceLowPrior(tracks, shipInfo, true);//此时内部区域无闸机可用，选择外围区域跟踪中优先级最低的闸机进行跟踪
             }
+            return result;
         }
 
         /// <summary>进出港报警推送</summary>
-        private void updateAlarm(GateTrackInfo[] tracks, ShipTrackConfig shipInfo, string shipId)
+        private bool updateAlarm(GateTrackInfo[] tracks, ShipTrackConfig shipInfo, string shipId)
         {
             if (shipInfo.OutstandTime != DateTime.MinValue)//进入区域报警，优先调用前一次跟踪该船的闸机
             {
                 if (tryKeepTrack(tracks, shipInfo, shipId))//优先调用前一次跟踪该船的闸机
-                    return;
+                    return true;
             }
             //此时进出港报警且未找到正在跟踪的闸机，查找可用闸机并完成跟踪报警
             //调用空闲或可用的闸机（优先级最高的一个）
             string[] freeGates = getFreeGates(tracks);
             if (freeGates.Length > 0)//选取第一个空闲的闸机进行跟踪
-                tryReplaceGate(tracks, shipInfo, freeGates.First());
+                return tryReplaceGate(tracks, shipInfo, freeGates.First());
             else //找到所有外围在跟踪的列表，抢占优先级低的跟踪
-                tryReplaceLowPrior(tracks, shipInfo,true);
+                return tryReplaceLowPrior(tracks, shipInfo,true);
         }
 
-        void updateOuter(GateTrackInfo[] tracks, string shipId)
+        bool updateOuter(GateTrackInfo[] tracks, string shipId)
         {
             var shipInfo = Tracks[shipId];
             if (tryKeepTrack(tracks, shipInfo, shipId))//优先调用前一次跟踪该船的闸机
-                return;
+                return true;
             //调用空闲或可用的闸机（优先级最高的一个）
             string[] freeGates = getFreeGates(tracks);
             if (freeGates.Length > 0)//选取第一个空闲的闸机进行跟踪
@@ -193,11 +215,11 @@ namespace ElectricFenceService.Fence
                 var firstTrack = tracks.FirstOrDefault(_ => _.GateId == gate);
                 if (firstTrack == null || freeGates.Length > 1)
                 {
-                    updateReplaceGateUtil(firstTrack, shipInfo, gate);
-                    return;
+                    if (updateReplaceGateUtil(firstTrack, shipInfo, gate))
+                        return true;
                 }
             }
-            tryReplaceLowPrior(tracks, shipInfo, false);//最后，找到所有外围在跟踪的列表，抢占优先级低的跟踪
+            return tryReplaceLowPrior(tracks, shipInfo, false);//最后，找到所有外围在跟踪的列表，抢占优先级低的跟踪
         }
 
         /// <summary>
@@ -223,13 +245,13 @@ namespace ElectricFenceService.Fence
             return false;
         }
 
-        void tryReplaceGate(GateTrackInfo[] tracks, ShipTrackConfig shipInfo, string gateId)
+        bool tryReplaceGate(GateTrackInfo[] tracks, ShipTrackConfig shipInfo, string gateId)
         {
             var lastTrack = tracks.FirstOrDefault(_ => _.GateId == gateId);
-            updateReplaceGateUtil(lastTrack, shipInfo,gateId);
+            return updateReplaceGateUtil(lastTrack, shipInfo,gateId);
         }
 
-        void updateReplaceGateUtil(GateTrackInfo lastTrack, ShipTrackConfig shipInfo, string gateId)
+        bool updateReplaceGateUtil(GateTrackInfo lastTrack, ShipTrackConfig shipInfo, string gateId)
         {
             if (lastTrack == null)
             {
@@ -238,7 +260,7 @@ namespace ElectricFenceService.Fence
             }
             else
                 lastTrack.Update(shipInfo);
-            onTrack(lastTrack);
+            return onTrack(lastTrack);
         }
 
         bool tryKeepTrack(GateTrackInfo[] tracks, ShipTrackConfig ship, string shipId)
@@ -278,13 +300,13 @@ namespace ElectricFenceService.Fence
             return frees.ToArray();
         }
 
-        void onTrack(GateTrackInfo track)
+        bool onTrack(GateTrackInfo track)
         {
             if (IsInner)
                 track.TrackStatus = GateTrackStatus.InnerTrack;
             else
                 track.TrackStatus = GateTrackStatus.OuterTrack;
-            FenceTrackMgr.Instance.UpdateTrack(track);
+            return FenceTrackMgr.Instance.UpdateTrack(track);
         }
 
         #endregion 尝试推送目标的状态

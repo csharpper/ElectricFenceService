@@ -1,5 +1,6 @@
 ﻿using ElectricFenceService.Util;
 using Fence.Util;
+using Geometry;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,6 +18,7 @@ namespace ElectricFenceService.Fence
         Dictionary<string, List<string>> _regionShips = new Dictionary<string, List<string>>();//设置关联船舶，记录每个区域内关联的所有船舶
         ShieldData _shield = null;
         object _obj = new object();
+        public RectangleD ValidPoly = RectangleD.FromLTRB(106,16,125,60);
         ShipFenceMgr()
         {
             load();
@@ -60,6 +62,11 @@ namespace ElectricFenceService.Fence
                 onShield();
                 var bridges = FenceMgr.Instance.Fence.Bridges;
                 var regions = FenceMgr.Instance.Fence.Regions;
+                double left = regions.Min(_ => _.Region.Min(r => r.X));
+                double right = regions.Max(_ => _.Region.Max(r => r.X));
+                double top = regions.Min(_ => _.Region.Min(r => r.Y));
+                double bottom = regions.Max(_ => _.Region.Max(r => r.Y));
+                ValidPoly = RectangleD.FromLTRB(left - 0.04, top - 0.04, right + 0.04, bottom+0.04);
                 ///删除过期的区域
                 var deleted = Regions.Where(_ => regions.FirstOrDefault(d => d.ID == _.RegionId) == null).ToArray();
                 if(deleted != null && deleted.Count() > 0)
@@ -152,6 +159,11 @@ namespace ElectricFenceService.Fence
 
         public /*async*/ void update(ShipInfo info)
         {
+            if (!ValidPoly.Contains(info.Longitude, info.Latitude))//监控区域扩大一定范围之外的目标不进行检测
+            {
+                //Console.WriteLine("{ship.MMSI}-{ship.Name}-{ship.ShipCargoType} - 域外船舶");
+                return;
+            }
             bool isFirstData = true;
             string shipId = info.MMSI != 0 ? info.MMSI.ToString() : info.ID;
             lock (_shipDicts)

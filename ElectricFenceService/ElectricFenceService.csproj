@@ -65,6 +65,7 @@
     <Compile Include="Fence\FenceTrackMgr.cs" />
     <Compile Include="Fence\PolygonTrack.cs" />
     <Compile Include="Fence\ShipFenceMgr.cs" />
+    <Compile Include="Track\ManualControlMgr.cs" />
     <Compile Include="Track\ShipTrackConfig.cs" />
     <Compile Include="Track\TrackEventMgr.cs" />
     <Compile Include="HttpServerMgr.cs" />

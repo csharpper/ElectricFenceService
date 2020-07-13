@@ -79,7 +79,7 @@ namespace ElectricFenceService.Fence
             {
                 if (!isOut)//外围区域内部
                     return GateTrack.Add(Ship.Ship, Gate, false, "");
-                else if (Ship.IsMovedTimeout())
+                else
                     return GateTrack.Add(Ship.Ship, Gate, false, "4");
             }
             return null;
