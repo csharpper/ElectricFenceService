@@ -62,7 +62,7 @@ namespace ElectricFenceService.Fence
                 bool inRegion = Calculator.PtInPolygon(ship.Longitude, ship.Latitude, Regions);
                 if (inRegion)
                 {
-                    bool isAlarm = !isFirstData && IsInner && lastTrack == null;//不考虑首次刷新的内部区域的船舶（此时认为该船不是刚进入区域
+                    bool isAlarm = !isFirstData && IsInner && (lastTrack == null || lastTrack.IsMoved);//不考虑首次刷新的内部区域的船舶（此时认为该船不是刚进入区域,已离港或者首次进入的船舶进行进港报警
                     if (lastTrack == null)//无历史跟踪数据
                     {
                         if (!IsInner && ship.SOG < 1)//外围区域速度过慢的船舶不启用跟踪
@@ -85,12 +85,23 @@ namespace ElectricFenceService.Fence
                     {
                         Common.Log.Logger.Default.Error($"可能异常的船舶 {ship.MMSI},{ship.Name} : {lastTrack.Ship.Longitude},{lastTrack.Ship.Latitude} -> {ship.Longitude},{ship.Latitude}");
                     }
-                    if (!lastTrack.IsMoved || IsInner)//不考虑已经离开之后外围船舶的刷新
+                    bool isalarm = false;
+                    if (IsInner)
                     {
-                        lastTrack.Update(ship, IsInner && !lastTrack.IsMoved, true);
-                        TrackEventMgr.Instance.Enqueue(shipID);
-                        trace($"+++++++++++++船舶 {shipID}：{ship.Name} 离开区域 {RegionId} {Name}-{IsInner}");
+                        if (!lastTrack.IsMoved)//未离港的船舶刚离港发送离港报警
+                            isalarm = true;
+                        else if (!lastTrack.IsOutstanding)//已经超时的报警信息需要先清除，否则外部检测会出问题。
+                        {
+                            Common.Log.Logger.Default.Trace($"船舶离开内部区域报警结束，准备清除该记录...{shipID}：{ship.Name} -离开内部区域 {RegionId} {Name} ");
+                            RemoveTimeoutTrack();
+                            return;
+                        }
                     }
+                    else if (!lastTrack.IsMoved)//外围区域仅考虑首次离开的船舶刷新
+                        return;
+                    lastTrack.Update(ship, isalarm, true);
+                    TrackEventMgr.Instance.Enqueue(shipID);
+                    trace($"+++++++++++++船舶 {shipID} ：{ship.Name} 离开区域心跳 {RegionId} {Name} - {IsInner} - Alarm:{isalarm}");
                 }
             }
         }
@@ -158,7 +169,10 @@ namespace ElectricFenceService.Fence
             if (shipInfo.IsOutstanding)//进出港报警时间段内
             {
                 if (!shipInfo.IsOutstanded)//此前未向外提供报警信息，发送报警信息
+                {
+                    Common.Log.Logger.Default.Trace("try update alarm.");
                     return updateAlarm(tracks, shipInfo, shipId);
+                }
                 else//已经向外提供过进出港报警，此处刷新跟踪信息
                     return tryKeepTrack(tracks, shipInfo, shipId);//调用前一次跟踪该船的闸机继续跟踪
             }
@@ -180,7 +194,10 @@ namespace ElectricFenceService.Fence
                         result = result || tryReplaceGate(tracks, shipInfo, free);
                 }
                 else
+                {
+                    trace($"_+_+{RegionId} {Name} 尝试获取低优先级个闸机。+_+_");
                     result = tryReplaceLowPrior(tracks, shipInfo, true);//此时内部区域无闸机可用，选择外围区域跟踪中优先级最低的闸机进行跟踪
+                }
             }
             return result;
         }

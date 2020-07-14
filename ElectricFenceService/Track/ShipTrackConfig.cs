@@ -42,12 +42,13 @@ namespace ElectricFenceService.Track
                     return false;
             }
         }
-        ///如果船舶离开区域且达到一定的时间，返回true
+        /// <summary>如果船舶离开区域且达到一定的时间，返回true</summary>
+        /// <returns></returns>
         public bool IsMovedTimeout()
         {
-            return (IsMoved && MoveOutTime.AddSeconds(ConfigDataMgr.TrackTimeout) < DateTime.Now);
+            return IsMoved && MoveOutTime.AddSeconds(ConfigDataMgr.TrackTimeout) < DateTime.Now;
         }
-
+        /// <summary>是否已经离港，离港返回true</summary>
         public bool IsMoved { get { return MoveOutTime != DateTime.MinValue; } }
 
         public ShipTrackConfig(ShipInfo ship, bool isAlarm)
