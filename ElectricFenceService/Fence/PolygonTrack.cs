@@ -39,13 +39,17 @@ namespace ElectricFenceService.Fence
                     {
                         var ship = del.Value.Ship;
                         string shipID = ship.MMSI == 0 ? ship.ID : ship.MMSI.ToString();
-
-                        Tracks.Remove(shipID);
-                        TrackEventMgr.Instance.Enqueue(shipID);
-                        trace($"船舶{shipID} {ship.Name} 跟踪超时，所在区域 {RegionId} {Name}-内部区域 {IsInner}.");
+                        removeShip(shipID, ship.Name);
                     }
                 }
             }
+        }
+
+        void removeShip(string shipId, string shipName)
+        {
+            Tracks.Remove(shipId);
+            TrackEventMgr.Instance.Enqueue(shipId);
+            trace($"船舶{shipId} {shipName} 跟踪超时，所在区域 {RegionId} {Name}-内部区域 {IsInner}.");
         }
 
         public void Update(ShipInfo ship, bool isFirstData)
@@ -93,7 +97,7 @@ namespace ElectricFenceService.Fence
                         else if (!lastTrack.IsOutstanding)//已经超时的报警信息需要先清除，否则外部检测会出问题。
                         {
                             Common.Log.Logger.Default.Trace($"船舶离开内部区域报警结束，准备清除该记录...{shipID}：{ship.Name} -离开内部区域 {RegionId} {Name} ");
-                            RemoveTimeoutTrack();
+                            removeShip(shipID,lastTrack.Ship.Name);
                             return;
                         }
                     }
