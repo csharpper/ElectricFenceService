@@ -55,7 +55,7 @@ namespace ElectricFenceService.Fence
             get { return TrackStatus == GateTrackStatus.InnerTrack && !Ship.IsOutstanding && Ship.MoveOutTime != DateTime.MinValue; }
         }
 
-        public GateTrack GetGateTrack()
+        public GateTrack GetGateTrack(bool isRemoved = false)
         {
             bool isOut = Ship.IsMoved;
             if (TrackStatus == GateTrackStatus.InnerTrack)
@@ -66,7 +66,7 @@ namespace ElectricFenceService.Fence
                     {
                         if(!isOut)//进港报警
                             return GateTrack.Add(Ship.Ship, Gate, true, "1");
-                        else//进港报警
+                        else//出港报警
                             return GateTrack.Add(Ship.Ship, Gate, true, "2");
                     }
                     if(isOut)//已经离开内部区域，发布外围跟踪消息
@@ -74,15 +74,16 @@ namespace ElectricFenceService.Fence
                 }
                 if (!isOut)//非报警内部信号刷新，发送内部心跳
                     return GateTrack.Add(Ship.Ship, Gate, true, "3");
+                else//非报警阶段且出港的船舶不返回任何有效信息
+                    return null;
             }
             else//外围区域
             {
-                if (!isOut)//外围区域内部
+                if (!isOut && !isRemoved)//外围区域内部且未因超时等删除的船舶
                     return GateTrack.Add(Ship.Ship, Gate, false, "");
                 else
                     return GateTrack.Add(Ship.Ship, Gate, false, "4");
             }
-            return null;
         }
     }
 

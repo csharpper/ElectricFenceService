@@ -91,7 +91,7 @@ namespace ElectricFenceService.Fence
 
         bool onTrack(GateTrackInfo track, bool isRemoved = false)
         {
-            var gatetrack = track.GetGateTrack();
+            var gatetrack = track.GetGateTrack(isRemoved);
             if(isRemoved)
                 Common.Log.Logger.Default.Trace($"removed track:{track.GateId} {track.Gate.Name} {track.ShipID} {track.Ship.Ship.Name} - 状态： {track.TrackStatus} 报警时间: {track.Ship.OutstandTime} 已报警？ {track.Ship.IsOutstanded} - 找到报文： {gatetrack?.ToJson()}");
             if (gatetrack != null)
