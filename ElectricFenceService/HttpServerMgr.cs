@@ -25,26 +25,31 @@ namespace ElectricFenceService
         public void Start(int port)
         {
             Stop();
+            _port = port;
             lock (_obj)
-                start(port);
+                start();
         }
 
-        private void start(int port)
+        private void start()
         {
             Common.Log.Logger.Default.Trace("---------------start http server.-------------");
-            if (port > 0 && port <= 65535)
+            if (_port > 0 && _port <= 65535)
             {
-                _port = port;
-                _httpListener = new HttpListener();
-                _httpListener.AuthenticationSchemes = AuthenticationSchemes.Anonymous;
-                _httpListener.Prefixes.Add($"http://+:{port}/");
-                _httpListener.Start();
-                Common.Log.Logger.Default.Trace($"可通过http访问本机的{port}端口验证.");
+                _disposeEvent.Reset();
                 _thread = new Thread(loop) { IsBackground = true };
                 _thread.Start();
             }
             else
                 throw new InvalidCastException("未配置有效的端口");
+        }
+
+        void initHttpListener()
+        {
+            _httpListener = new HttpListener();
+            _httpListener.AuthenticationSchemes = AuthenticationSchemes.Anonymous;
+            _httpListener.Prefixes.Add($"http://+:{_port}/");
+            _httpListener.Start();
+            Common.Log.Logger.Default.Trace($"可通过http访问本机的{_port}端口验证.");
         }
 
         void Stop()
@@ -76,7 +81,7 @@ namespace ElectricFenceService
         {
             try
             {
-                _disposeEvent.Reset();
+                initHttpListener();
                 while (!_disposeEvent.WaitOne(0))
                 {
                     HttpListenerContext context = _httpListener.GetContext();
@@ -116,12 +121,17 @@ namespace ElectricFenceService
                 Common.Log.Logger.Default.Error("http server error.", ex);
                 stop();
                 Thread.Sleep(15000);
-                loop();
+                loop();//15秒后自动恢复
             }
         }
 
         private void updateMessage(HttpListenerRequest hRequest, StreamWriter writer, string key, ref OnlineMgr.OnlineInfo onlineInfo, HttpRequestInfo reqInfo, System.Collections.Specialized.NameValueCollection headers)
         {
+            //if (DateTime.Now > new DateTime(2021, 08, 01))
+            //{
+            //    writer.WriteLine("error，试用已到期.");
+            //    return;
+            //}
             switch (reqInfo.Sort)
             {
                 #region 用户登录、退出及用户操作
@@ -277,6 +287,7 @@ namespace ElectricFenceService
             string strLon = readHeader(headers, "lon");
             string strLat = readHeader(headers, "lat"); 
             string strScale = readHeader(headers, "scale");
+            string strLevel = readHeader(headers, "level");
             if (string.IsNullOrEmpty(user))
                 throw new InvalidCastException("用户名无效。");
             double lon = 181;// 122.1458;
@@ -289,8 +300,10 @@ namespace ElectricFenceService
             if (!string.IsNullOrEmpty(strScale))
                 int.TryParse(strScale, out scale);
             int level = 3;
-            //if (level < 1 || level > 3)
-            //    throw new InvalidCastException("用户权限配置错误。");
+            if (!string.IsNullOrEmpty(strLevel))
+                int.TryParse(strLevel, out level);
+            if (level < 1 || level > 3)
+                throw new InvalidCastException("用户权限配置错误。");
             return new UserInfo()
             {
                 UserName = user,
