@@ -132,6 +132,8 @@ namespace ElectricFenceService
             //    writer.WriteLine("error，试用已到期.");
             //    return;
             //}
+            if(reqInfo.Sort != "ship")
+            Console.WriteLine(reqInfo.Sort);
             switch (reqInfo.Sort)
             {
                 #region 用户登录、退出及用户操作
@@ -403,15 +405,37 @@ namespace ElectricFenceService
             }
             foreach (var source in req.Source)
             {
+                var setting = source.Setting;
+                Common.Log.Logger.Default.Trace($"{req.Sort} delete:{isDelete} {source.Name} - {setting}");
+                Console.WriteLine($"{req.Sort} delete:{isDelete} {source.Name} - {setting}");
+                setting = getId(setting);
                 if (gates != null && source.Name.Equals("gateid"))
-                    gates.Add(source.Setting);
+                    gates.Add(setting);
                 if (regions != null && source.Name.Equals("regionid"))
-                    regions.Add(source.Setting);
+                    regions.Add(setting);
             }
             if(isDelete)
                 FenceMgr.Instance.Delete(gates, regions);
             else
                 FenceMgr.Instance.AddBridge(gates, regions);
+        }
+
+        string getId(string source)
+        {
+            List<byte> data = new List<byte>();
+            for (int i = 0; i < source.Length; i++)
+            {
+                if (source[i] == '%')
+                {
+                    string substr = source.Substring(i + 1, Math.Min(source.Length - i - 1,2));
+                    byte num = (byte)Convert.ToInt16("0x" + substr, 16);
+                    data.Add(num);
+                    i += 2;
+                }
+                else
+                    data.Add((byte)source[i]);
+            }
+            return Encoding.UTF8.GetString(data.ToArray());
         }
 
         #endregion

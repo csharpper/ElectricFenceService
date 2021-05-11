@@ -54,6 +54,8 @@ namespace ElectricFenceService.Fence
 
         public void Update(ShipInfo ship, bool isFirstData)
         {
+            if (GateIds == null || GateIds.Length == 0)//区域未绑定任何闸机，直接跳过。
+                return;
             string shipID = ship.MMSI == 0 ? ship.ID : ship.MMSI.ToString();
             if (IsInner && ship.MMSI == 0)//不考虑雷达目标在内部区域
                 return;
@@ -112,6 +114,8 @@ namespace ElectricFenceService.Fence
 
         public void UpdateRegion(FenceRegionsInfo info, string[] gateIds)
         {
+            if (gateIds == null || gateIds.Length == 0)
+                return;
             lock (_obj)
             {
                 Name = info.Name;

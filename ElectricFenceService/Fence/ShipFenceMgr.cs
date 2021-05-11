@@ -135,7 +135,7 @@ namespace ElectricFenceService.Fence
         {
             if (isShieldShip(ship))
             {
-                Console.WriteLine($"{ship.MMSI}-{ship.Name}-{ship.ShipCargoType} - 屏蔽船舶");
+                //Console.WriteLine($"{ship.MMSI}-{ship.Name}-{ship.ShipCargoType} - 屏蔽船舶");
                 return;
             }
             lock(_shipQueue)

@@ -144,8 +144,10 @@ namespace ElectricFenceService
             var body = new StreamReader(stream).ReadToEnd();
             if (string.IsNullOrWhiteSpace(body))
                 throw new InvalidCastException("请输入有效的数据.");
+            
             Common.Log.Logger.Default.Trace("Stream:" + body);
             var region = JsonConvert.DeserializeObject<T>(body);
+            region.ID.Replace(" ", "");
             Set(region);
         }
 

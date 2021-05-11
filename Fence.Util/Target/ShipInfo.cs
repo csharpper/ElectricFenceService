@@ -51,6 +51,11 @@ namespace Fence.Util
             str += "," + Math.Round(SOG, 1);
             str += "," + Math.Round(COG, 1);
             str += "," + TrueHeading;
+            try
+            {
+                str += "," + NationMgr.GetNationFromMMSI(MMSI);
+            }
+            catch { }
             return str;
         }
     }
