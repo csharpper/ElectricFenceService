@@ -29,6 +29,7 @@ namespace ElectricFenceService.Fence
         public string shipDistance;//":"545","
         public string turnStileCode;//":"00000000354016000024"}
         public string objInner;
+        public string shipNation;
 
         public string ToJson()
         {
@@ -58,7 +59,8 @@ namespace ElectricFenceService.Fence
                 reportTime = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss"),
                 shipDistance = Math.Round(getDis(ship.Longitude, ship.Latitude, gate.Longitude, gate.Latitude)).ToString(),
                 objInner = (isInner?"1":"0"),
-            };
+                shipNation = NationMgr.GetNationFromMMSI(ship.MMSI)
+        };
         }
 
         private static double getDis(double longitude1, double latitude1, double longitude2, double latitude2)

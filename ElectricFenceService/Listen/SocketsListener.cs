@@ -44,8 +44,8 @@ namespace ElectricFenceService.Listen
 
         public void Send(string message)
         {
-            Send(Encoding.UTF8.GetBytes(message));
-            Thread.Sleep(10);//发送间隔不低于10ms
+            Send(Encoding.UTF8.GetBytes(message + "\r\n"));
+            Thread.Sleep(30);//发送间隔不低于10ms
         }
 
         public void Send(byte[] buffer)
